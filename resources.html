@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0, viewport-fit=cover"
+  />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="theme-color" content="#0a0c12" />
+  <link rel="icon" href="assets/favicon.png" type="image/png" />
+  <link rel="apple-touch-icon" href="assets/favicon.png" />
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Clash+Display:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap"
+    rel="stylesheet"
+  />
+  <title>Helpful Resources • Course Pricing Calculator</title>
+  <script>
+    (function ensureBaseHref() {
+      if (document.querySelector('base')) {
+        return;
+      }
+      const { origin, pathname } = window.location;
+      let basePath = pathname;
+      if (!pathname.endsWith('/')) {
+        const lastSegmentIndex = pathname.lastIndexOf('/') + 1;
+        const lastSegment = pathname.slice(lastSegmentIndex);
+        if (lastSegment && lastSegment.includes('.')) {
+          basePath = pathname.slice(0, lastSegmentIndex);
+        } else if (lastSegment) {
+          basePath = `${pathname}/`;
+        } else {
+          basePath = '/';
+        }
+      }
+      if (!basePath.endsWith('/')) {
+        basePath += '/';
+      }
+      const base = document.createElement('base');
+      base.href = `${origin}${basePath}`;
+      document.head.insertBefore(base, document.head.firstChild);
+    })();
+  </script>
+  <script src="pwa.js" defer></script>
+  <link rel="stylesheet" href="styles/resources.css" />
+
+</head>
+<body data-theme="dark">
+  <div class="page">
+    <nav class="top-nav">
+      <a href="index.html" class="top-link">Back to calculator</a>
+    </nav>
+    <main>
+      <header>
+        <h1>Helpful resources</h1>
+        <p class="lead">Dive deeper into common Dutch freelancer costs with these curated guides.</p>
+      </header>
+      <section class="resource-card" aria-labelledby="resource-links-title">
+        <h2 id="resource-links-title">Cost benchmarks and guidance</h2>
+        <ul class="resource-list">
+          <li>
+            <a
+              class="resource-link"
+              href="https://www.kvk.nl/financiering/bereken-uw-uurtarief-als-zzper/"
+              target="_blank"
+              rel="noreferrer noopener"
+            >KVK on calculating your ZZP hourly rate</a>
+            <p class="resource-description">Overview of typical Dutch freelancer expenses and how to structure your tariff.</p>
+          </li>
+          <li>
+            <a
+              class="resource-link"
+              href="https://www.independer.nl/pensioen/zelfstandig/pensioen-zzp.aspx"
+              target="_blank"
+              rel="noreferrer noopener"
+            >Independer pension comparison for ZZP’ers</a>
+            <p class="resource-description">Compare third pillar pension products tailored to independent professionals.</p>
+          </li>
+          <li>
+            <a
+              class="resource-link"
+              href="https://www.zzp-nederland.nl/verzekeringen/arbeidsongeschiktheidsverzekering"
+              target="_blank"
+              rel="noreferrer noopener"
+            >ZZP Nederland on AOV insurance</a>
+            <p class="resource-description">Understand disability (AOV) coverage options, premiums, and tax treatment.</p>
+          </li>
+          <li>
+            <a
+              class="resource-link"
+              href="https://www.zorgwijzer.nl/zorgverzekering/zzp"
+              target="_blank"
+              rel="noreferrer noopener"
+            >Zorgwijzer health insurance guide for ZZP’ers</a>
+            <p class="resource-description">Compare zorgverzekeringen with business deductions and self-employed benefits in mind.</p>
+          </li>
+        </ul>
+      </section>
+    </main>
+  </div>
+  <script src="js/theme.js"></script>
+</body>
+</html>

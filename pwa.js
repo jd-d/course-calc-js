@@ -22,7 +22,7 @@
 
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
-      const serviceWorkerUrl = new URL('service-worker.js', document.baseURI).href;
+      const serviceWorkerUrl = new URL('./service-worker.js', document.baseURI).href;
       navigator.serviceWorker.register(serviceWorkerUrl, { scope: './' }).catch(error => {
         console.error('Service worker registration failed:', error);
       });

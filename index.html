@@ -873,6 +873,14 @@
       flex: 1 1 60%;
     }
 
+    .persist-controls__actions {
+      display: flex;
+      flex: 0 0 auto;
+      gap: 12px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
     .persist-checkbox {
       display: inline-flex;
       align-items: center;
@@ -897,6 +905,45 @@
     .persist-controls button {
       flex: 0 0 auto;
       min-width: 150px;
+    }
+
+    .data-portability {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: flex-start;
+      gap: 16px;
+      margin-top: 18px;
+      padding: 16px;
+      border-radius: 14px;
+      border: 1px solid var(--field-border);
+      background: var(--field-bg);
+    }
+
+    .data-portability__text {
+      flex: 1 1 260px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .data-portability__title {
+      margin: 0;
+      font-weight: 600;
+    }
+
+    .data-portability__description,
+    .data-portability__version {
+      margin: 0;
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      line-height: 1.5;
+    }
+
+    .data-portability__actions {
+      display: flex;
+      flex: 0 0 auto;
+      gap: 12px;
+      flex-wrap: wrap;
     }
 
     .header-link {
@@ -1855,6 +1902,20 @@
         text-align: left;
       }
 
+      .persist-controls__actions,
+      .data-portability__actions {
+        width: 100%;
+        justify-content: flex-start;
+      }
+
+      .data-portability__actions button {
+        width: 100%;
+      }
+
+      .data-portability {
+        flex-direction: column;
+      }
+
       .persist-controls button {
         width: 100%;
       }
@@ -2006,7 +2067,23 @@
                     Stores your latest calculator values in local storage so they're ready the next time you visit from this browser.
                   </p>
                 </div>
-                <button type="button" id="reset-saved-inputs" class="secondary">Reset to defaults</button>
+                <div class="persist-controls__actions">
+                  <button type="button" id="reset-saved-inputs" class="secondary">Reset to defaults</button>
+                </div>
+              </div>
+              <div class="data-portability" role="group" aria-labelledby="data-portability-title">
+                <div class="data-portability__text">
+                  <p class="data-portability__title" id="data-portability-title">Export or import your setup</p>
+                  <p class="data-portability__description">
+                    Download all current settings as a JSON file so you can move them to another browser, then import them later to restore every field.
+                  </p>
+                  <p class="data-portability__version">Format version <span id="data-portability-version">1.0.0</span></p>
+                </div>
+                <div class="data-portability__actions">
+                  <button type="button" id="export-settings" class="secondary">Export JSON</button>
+                  <button type="button" id="import-settings" class="secondary">Import JSON</button>
+                  <input type="file" id="import-settings-input" accept="application/json" hidden />
+                </div>
               </div>
               <div class="control">
                 <label for="currency-symbol">
@@ -2784,6 +2861,11 @@
           <a href="https://github.com/jd-d/course-pricing-calculator" target="_blank" rel="noreferrer noopener">GitHub</a>, review it yourself or with a
           developer you trust to confirm exactly how the site works.
         </p>
+        <p>
+          Exporting your calculator setup works the same way: clicking “Export JSON” bundles every field, toggle, and layout preference into a
+          <code>.json</code> file in your browser. Keep that file wherever you like, then use “Import JSON” later to apply the exact same settings on this
+          or another device. Imports only touch local storage if you tell the app to remember inputs; otherwise everything stays in memory for the current session.
+        </p>
       </div>
       <div>
         <h3>Easy ways to verify this yourself</h3>
@@ -3022,7 +3104,10 @@
       workingWeeksDisplay: document.getElementById('working-weeks-display'),
       workingDaysDisplay: document.getElementById('working-days-display'),
       rememberInputs: document.getElementById('remember-inputs'),
-      resetSavedInputs: document.getElementById('reset-saved-inputs')
+      resetSavedInputs: document.getElementById('reset-saved-inputs'),
+      exportSettings: document.getElementById('export-settings'),
+      importSettings: document.getElementById('import-settings'),
+      importSettingsInput: document.getElementById('import-settings-input')
     };
 
     const desiredIncomeFieldMap = {
@@ -4453,8 +4538,15 @@
     const resetSavedInputsButton = controls.resetSavedInputs instanceof HTMLButtonElement ? controls.resetSavedInputs : null;
     const PERSISTENCE_ENABLED_KEY = 'course-pricing-save-enabled';
     const PERSISTENCE_VALUES_KEY = 'course-pricing-saved-inputs';
+    const DATA_PORTABILITY_FORMAT = 'course-pricing-calculator';
+    const DATA_PORTABILITY_VERSION = '1.0.0';
+    const dataPortabilityVersionElement = document.getElementById('data-portability-version');
+    if (dataPortabilityVersionElement) {
+      dataPortabilityVersionElement.textContent = DATA_PORTABILITY_VERSION;
+    }
     let persistenceEnabled = false;
     let persistableInputsCache = null;
+    let dataPortabilityStatusTimeout = null;
 
     initializeDesiredIncomeDatasets();
     updateDesiredIncomeTitle();
@@ -4507,6 +4599,141 @@
     }
 
     const defaultInputValues = captureInputValues();
+
+    function showDataPortabilityStatus(message, duration = 3200) {
+      if (!controls.statusMessage) {
+        return;
+      }
+      controls.statusMessage.textContent = message;
+      if (dataPortabilityStatusTimeout) {
+        clearTimeout(dataPortabilityStatusTimeout);
+      }
+      if (duration > 0) {
+        dataPortabilityStatusTimeout = window.setTimeout(() => {
+          if (controls.statusMessage.textContent === message) {
+            controls.statusMessage.textContent = '';
+          }
+        }, duration);
+      }
+    }
+
+    function getThemeForExport() {
+      return document.body.dataset.theme === 'light' ? 'light' : 'dark';
+    }
+
+    function buildDataPortabilityPayload() {
+      return {
+        format: DATA_PORTABILITY_FORMAT,
+        version: DATA_PORTABILITY_VERSION,
+        exportedAt: new Date().toISOString(),
+        data: {
+          inputs: captureInputValues(),
+          persistenceEnabled,
+          theme: getThemeForExport()
+        }
+      };
+    }
+
+    function triggerJsonDownload(filename, payload) {
+      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    }
+
+    function handleExportSettings() {
+      try {
+        const payload = buildDataPortabilityPayload();
+        const timestamp = new Date().toISOString().replace(/[:]/g, '').split('.')[0];
+        const filename = `course-pricing-settings-${timestamp}.json`;
+        triggerJsonDownload(filename, payload);
+        showDataPortabilityStatus('JSON export started. Keep the file safe to import your setup later.');
+      } catch (error) {
+        console.error('Unable to export settings', error);
+        showDataPortabilityStatus('Sorry, exporting the JSON file failed. Please try again.', 4000);
+      }
+    }
+
+    function parseImportedPayload(text) {
+      let parsed;
+      try {
+        parsed = JSON.parse(text);
+      } catch (error) {
+        throw new Error('The selected file was not valid JSON.');
+      }
+      if (!parsed || typeof parsed !== 'object') {
+        throw new Error('The selected file does not contain the expected data.');
+      }
+      if (parsed.format !== DATA_PORTABILITY_FORMAT) {
+        throw new Error('This file is not a Course Pricing Calculator export.');
+      }
+      if (typeof parsed.version !== 'string') {
+        throw new Error('The export file is missing its version number.');
+      }
+      if (parsed.version !== DATA_PORTABILITY_VERSION) {
+        throw new Error(`Unsupported export version: ${parsed.version}.`);
+      }
+      return parsed;
+    }
+
+    function applyImportedSettings(payload) {
+      const { data } = payload;
+      if (!data || typeof data !== 'object') {
+        throw new Error('The export file does not include any settings to apply.');
+      }
+      const { inputs, persistenceEnabled: importedPersistenceEnabled, theme } = data;
+      if (!inputs || typeof inputs !== 'object') {
+        throw new Error('The export file is missing the saved inputs.');
+      }
+      applyInputValues(inputs);
+      const usePersistence = Boolean(importedPersistenceEnabled);
+      persistenceEnabled = usePersistence;
+      if (rememberInputsToggle) {
+        rememberInputsToggle.checked = usePersistence;
+      }
+      if (usePersistence) {
+        savePersistedInputs();
+      } else {
+        clearPersistedInputs();
+      }
+      if (theme === 'light' || theme === 'dark') {
+        respectSystemPreference = false;
+        applyThemePreference(theme, { save: true });
+      }
+      showDataPortabilityStatus('Settings imported. Everything has been restored from the JSON file.');
+    }
+
+    function handleImportFileSelection(event) {
+      const input = event.target;
+      if (!(input instanceof HTMLInputElement) || !input.files || !input.files.length) {
+        return;
+      }
+      const [file] = input.files;
+      input.value = '';
+      if (!file) {
+        return;
+      }
+      const reader = new FileReader();
+      reader.addEventListener('load', loadEvent => {
+        try {
+          const text = typeof loadEvent.target?.result === 'string' ? loadEvent.target.result : '';
+          const payload = parseImportedPayload(text);
+          applyImportedSettings(payload);
+        } catch (error) {
+          console.error('Unable to import settings', error);
+          showDataPortabilityStatus(error.message || 'Sorry, importing failed. Please check the file and try again.', 5000);
+        }
+      });
+      reader.addEventListener('error', () => {
+        showDataPortabilityStatus('Sorry, we could not read that file. Please try again.', 4000);
+      });
+      reader.readAsText(file);
+    }
 
     function readPersistenceEnabled() {
       try {
@@ -4707,6 +4934,21 @@
           }
         });
       }
+    }
+
+    if (controls.exportSettings instanceof HTMLButtonElement) {
+      controls.exportSettings.addEventListener('click', handleExportSettings);
+    }
+
+    if (
+      controls.importSettings instanceof HTMLButtonElement
+      && controls.importSettingsInput instanceof HTMLInputElement
+    ) {
+      controls.importSettings.addEventListener('click', () => {
+        controls.importSettingsInput.value = '';
+        controls.importSettingsInput.click();
+      });
+      controls.importSettingsInput.addEventListener('change', handleImportFileSelection);
     }
 
     const tablesContainer = document.getElementById('tables-container');
@@ -7294,7 +7536,7 @@
 
     Object.values(controls).forEach(control => {
       if (!(control instanceof HTMLInputElement)) return;
-      if (control === controls.lessonCost) return;
+      if (control === controls.lessonCost || control === controls.importSettingsInput) return;
       control.addEventListener('change', render);
       control.addEventListener('input', event => {
         if (event.target.type === 'text') return;

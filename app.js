@@ -3416,6 +3416,63 @@
       return true;
     }
 
+    function buildCostsSummary(costs, symbol, activeMonths) {
+      const fixedCostLabels = {
+        location: 'Location / venue',
+        insurance: 'Business insurance',
+        disability: 'Disability insurance (AOV)',
+        health: 'Health insurance premium',
+        pension: 'Pension contributions',
+        marketing: 'Marketing',
+        materials: 'Materials',
+        admin: 'Admin / software',
+        development: 'Professional development'
+      };
+      const variableCostLabels = {
+        perClass: 'Variable cost per class',
+        perStudent: 'Variable cost per student',
+        perStudentMonthly: 'Variable monthly cost per student'
+      };
+
+      const includedCosts = [];
+      const excludedCosts = [];
+
+      // Process fixed costs
+      Object.entries(fixedCostLabels).forEach(([key, label]) => {
+        const annualValue = costs.fixed?.[key] ?? 0;
+        if (annualValue > 0) {
+          const monthlyValue = activeMonths > 0 ? annualValue / activeMonths : annualValue / MONTHS_PER_YEAR;
+          includedCosts.push(`${label} (${formatCurrency(symbol, monthlyValue)})`);
+        } else {
+          excludedCosts.push(label);
+        }
+      });
+
+      // Process variable costs
+      const variableCostKeys = [
+        { key: 'perClass', value: costs.variable?.perClass ?? 0 },
+        { key: 'perStudent', value: costs.variable?.perStudent ?? 0 },
+        { key: 'perStudentMonthly', value: costs.variable?.perStudentMonthly ?? 0 }
+      ];
+      variableCostKeys.forEach(({ key, value }) => {
+        const label = variableCostLabels[key];
+        if (value > 0) {
+          includedCosts.push(`${label} (${formatCurrency(symbol, value)})`);
+        } else {
+          excludedCosts.push(label);
+        }
+      });
+
+      const includedHtml = includedCosts.length
+        ? `<p class="costs-summary-item"><strong>Costs included (monthly):</strong> ${escapeHtml(includedCosts.join(', '))}</p>`
+        : `<p class="costs-summary-item"><strong>Costs included (monthly):</strong> <em>None</em></p>`;
+      const excludedHtml = excludedCosts.length
+        ? `<p class="costs-summary-item"><strong>Costs not included:</strong> ${escapeHtml(excludedCosts.join(', '))}</p>`
+        : '';
+
+      return `<div class="costs-summary">${includedHtml}${excludedHtml}</div>`;
+    }
+
     function buildPricingTable(data, symbol, bufferPercent, options = {}) {
       if (!data.length) {
         return `<div class="card"><p class="status-message">No valid combinations available.</p></div>`;
@@ -4141,6 +4198,30 @@
           activeMonths: inputs.activeMonths,
           hoursPerLesson: inputs.hoursPerLesson
         });
+
+        // Build cost breakdown for display under pricing table
+        const costsData = {
+          fixed: {
+            location: Math.max(parseNumber(fixedCostFields.location?.annual?.value, 0), 0),
+            insurance: Math.max(parseNumber(fixedCostFields.insurance?.annual?.value, 0), 0),
+            disability: Math.max(parseNumber(fixedCostFields.disability?.annual?.value, 0), 0),
+            health: Math.max(parseNumber(fixedCostFields.health?.annual?.value, 0), 0),
+            pension: Math.max(parseNumber(fixedCostFields.pension?.annual?.value, 0), 0),
+            marketing: Math.max(parseNumber(fixedCostFields.marketing?.annual?.value, 0), 0),
+            materials: Math.max(parseNumber(fixedCostFields.materials?.annual?.value, 0), 0),
+            admin: Math.max(parseNumber(fixedCostFields.admin?.annual?.value, 0), 0),
+            development: Math.max(parseNumber(fixedCostFields.development?.annual?.value, 0), 0)
+          },
+          variable: {
+            perClass: inputs.variableCostPerClass,
+            perStudent: inputs.variableCostPerStudent,
+            perStudentMonthly: inputs.variableCostPerStudentMonthly
+          }
+        };
+        const costsSummary = mode === PRICING_MODE_TARGET
+          ? buildCostsSummary(costsData, inputs.currencySymbol, inputs.activeMonths)
+          : '';
+
         const targetsTable = mode === PRICING_MODE_LESSON
           ? ''
           : buildActiveTargetsTable({
@@ -4151,7 +4232,7 @@
               activeMonths: inputs.activeMonths
             });
 
-        tablesContainer.innerHTML = pricingTable + targetsTable;
+        tablesContainer.innerHTML = pricingTable + costsSummary + targetsTable;
         scheduleTablesLayoutUpdate();
       }
 

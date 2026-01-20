@@ -891,7 +891,10 @@
     const numberFormatter = new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 });
 
     let latestResults = [];
-    let showBasePrices = false;
+    let includeBuffer = true;
+    let showExVat = true;
+    let showHourlyRate = true;
+    let showAnnualIncome = true;
     let targetNetBasis = 'year';
     let desiredIncomeDisplayMode = 'net';
     let desiredIncomeLockedAsGross = false;
@@ -3420,7 +3423,10 @@
 
       const {
         mode = PRICING_MODE_TARGET,
-        showBasePrices: showBase = false,
+        includeBuffer: useBuffer = true,
+        showExVat: displayExVat = true,
+        showHourlyRate: displayHourly = true,
+        showAnnualIncome: displayAnnual = true,
         minLessonPrice = null,
         maxLessonPrice = null,
         acceptableIncome: acceptableIncomeRange = null,
@@ -3430,11 +3436,7 @@
         hoursPerLesson: lessonHours = 1
       } = options;
       const formattedBuffer = formatFixed(bufferPercent, 1);
-      const showBasePricesActive = mode === PRICING_MODE_TARGET && showBase;
       const cardClasses = ['card', 'pricing-card'];
-      if (showBasePricesActive) {
-        cardClasses.push('show-base-prices');
-      }
 
       const hasPreferredRange =
         Number.isFinite(minLessonPrice) || Number.isFinite(maxLessonPrice);
@@ -3496,10 +3498,23 @@
       };
 
       const toggleMarkup = mode === PRICING_MODE_TARGET
-        ? `<div class="price-toggle-row">
-            <button type="button" class="price-reveal-toggle secondary" aria-expanded="${showBasePricesActive}">
-              ${showBasePricesActive ? 'Hide base price' : 'Show base price'}
-            </button>
+        ? `<div class="price-display-toggles">
+            <label class="display-toggle">
+              <input type="checkbox" class="display-toggle-checkbox" data-toggle="exVat" ${showExVat ? 'checked' : ''} />
+              <span>ex VAT</span>
+            </label>
+            <label class="display-toggle">
+              <input type="checkbox" class="display-toggle-checkbox" data-toggle="hourly" ${showHourlyRate ? 'checked' : ''} />
+              <span>${hourlyRateLabel}</span>
+            </label>
+            <label class="display-toggle">
+              <input type="checkbox" class="display-toggle-checkbox" data-toggle="annual" ${showAnnualIncome ? 'checked' : ''} />
+              <span>${annualIncomeLabel}</span>
+            </label>
+            <label class="display-toggle display-toggle--buffer">
+              <input type="checkbox" class="buffer-toggle-checkbox" ${useBuffer ? 'checked' : ''} />
+              <span>Include buffer (+${formattedBuffer}%)</span>
+            </label>
           </div>`
         : '';
 
@@ -3580,14 +3595,12 @@
               `;
               }
 
-              const bufferedExVat = formatCurrency(symbol, col.buffered.priceExVat);
-              const bufferedInclVat = formatCurrency(symbol, col.buffered.priceInclVat);
-              const baseExVat = formatCurrency(symbol, col.base.priceExVat);
-              const baseInclVat = formatCurrency(symbol, col.base.priceInclVat);
-              const bufferedOutOfRange = isPriceOutOfRange(col.buffered.priceInclVat);
-              const baseOutOfRange = isPriceOutOfRange(col.base.priceInclVat);
-              const highlightBaseIncome = shouldHighlightIncome(
-                { monthlyNet: col.base.monthlyNet, annualNet: col.base.annualNet },
+              const priceData = useBuffer ? col.buffered : col.base;
+              const exVat = formatCurrency(symbol, priceData.priceExVat);
+              const inclVat = formatCurrency(symbol, priceData.priceInclVat);
+              const outOfRange = isPriceOutOfRange(priceData.priceInclVat);
+              const highlightIncome = shouldHighlightIncome(
+                { monthlyNet: priceData.monthlyNet, annualNet: priceData.annualNet },
                 {
                   acceptableIncome: acceptableIncomeRange,
                   displayMode: incomeDisplayMode,
@@ -3595,69 +3608,38 @@
                   activeMonths: incomeActiveMonths
                 }
               );
-              const highlightBufferedIncome = shouldHighlightIncome(
-                { monthlyNet: col.buffered.monthlyNet, annualNet: col.buffered.annualNet },
-                {
-                  acceptableIncome: acceptableIncomeRange,
-                  displayMode: incomeDisplayMode,
-                  taxRate: incomeTaxRate,
-                  activeMonths: incomeActiveMonths
-                }
-              );
-              const bufferedClasses = ['price-line', 'buffered'];
-              if (bufferedOutOfRange) {
-                bufferedClasses.push('price-line--out-of-range');
+              const priceClasses = ['price-line'];
+              if (outOfRange) {
+                priceClasses.push('price-line--out-of-range');
               }
-              if (highlightBufferedIncome) {
-                bufferedClasses.push('price-line--acceptable');
+              if (highlightIncome) {
+                priceClasses.push('price-line--acceptable');
               }
-              const baseClasses = ['price-line', 'base'];
-              if (baseOutOfRange) {
-                baseClasses.push('price-line--out-of-range');
-              }
-              if (highlightBaseIncome) {
-                baseClasses.push('price-line--acceptable');
-              }
-              const bufferedButtonClass = bufferedClasses.join(' ');
-              const baseButtonClass = baseClasses.join(' ');
-              const bufferedAnnualIncomeDisplay = formatIncomeForDisplay(col.buffered.annualNet);
-              const baseAnnualIncomeDisplay = formatIncomeForDisplay(col.base.annualNet);
-              const bufferedHourlyDisplay = formatHourlyRateDisplay(col.buffered.breakdown);
-              const baseHourlyDisplay = formatHourlyRateDisplay(col.base.breakdown);
-              const bufferedValueClass = bufferedOutOfRange
+              const buttonClass = priceClasses.join(' ');
+              const annualIncomeDisplay = formatIncomeForDisplay(priceData.annualNet);
+              const hourlyDisplay = formatHourlyRateDisplay(priceData.breakdown);
+              const valueClass = outOfRange
                 ? 'price-value price-value--out-of-range'
                 : 'price-value';
-              const baseValueClass = baseOutOfRange
-                ? 'price-value price-value--out-of-range'
-                : 'price-value';
+              const priceLabel = useBuffer ? `Buffered +${formattedBuffer}%` : 'Base price';
+              const variant = useBuffer ? 'buffered' : 'base';
+              const exVatMarkup = displayExVat ? `<span class="price-secondary">ex VAT ${exVat}</span>` : '';
+              const hourlyMarkup = displayHourly ? `<span class="price-tertiary">${hourlyRateLabel} ${hourlyDisplay}</span>` : '';
+              const annualMarkup = displayAnnual ? `<span class="price-secondary">${annualIncomeLabel} ${annualIncomeDisplay}</span>` : '';
               return `
                 <td>
                   <button
                     type="button"
-                    class="${bufferedButtonClass}"
+                    class="${buttonClass}"
                     data-row="${rowIndex}"
                     data-column="${columnIndex}"
-                    data-variant="buffered"
+                    data-variant="${variant}"
                   >
-                    <span class="price-label">Buffered +${formattedBuffer}%</span>
-                    <strong class="${bufferedValueClass}">${bufferedInclVat}</strong>
-                    <span class="price-secondary">${annualIncomeLabel} ${bufferedAnnualIncomeDisplay}</span>
-                    <span class="price-secondary">ex VAT ${bufferedExVat}</span>
-                    <span class="price-tertiary">${hourlyRateLabel} ${bufferedHourlyDisplay}</span>
-                  </button>
-                  <button
-                    type="button"
-                    class="${baseButtonClass}"
-                    aria-hidden="${showBasePricesActive ? 'false' : 'true'}"
-                    data-row="${rowIndex}"
-                    data-column="${columnIndex}"
-                    data-variant="base"
-                  >
-                    <span class="price-label">Base (no buffer)</span>
-                    <strong class="${baseValueClass}">${baseInclVat}</strong>
-                    <span class="price-secondary">${annualIncomeLabel} ${baseAnnualIncomeDisplay}</span>
-                    <span class="price-secondary">ex VAT ${baseExVat}</span>
-                    <span class="price-tertiary">${hourlyRateLabel} ${baseHourlyDisplay}</span>
+                    <span class="price-label">${priceLabel}</span>
+                    <strong class="${valueClass}">${inclVat}</strong>
+                    ${exVatMarkup}
+                    ${hourlyMarkup}
+                    ${annualMarkup}
                   </button>
                 </td>
               `;
@@ -4143,7 +4125,10 @@
       } else {
         const pricingTable = buildPricingTable(pricingData, inputs.currencySymbol, bufferPercent, {
           mode,
-          showBasePrices,
+          includeBuffer,
+          showExVat,
+          showHourlyRate,
+          showAnnualIncome,
           minLessonPrice: inputs.lessonPriceMin,
           maxLessonPrice: inputs.lessonPriceMax,
           acceptableIncome: {
@@ -4523,16 +4508,25 @@
         return;
       }
 
-      const toggleButton = event.target instanceof HTMLElement ? event.target.closest('.price-reveal-toggle') : null;
-      if (!toggleButton) {
+      const toggleCheckbox = event.target instanceof HTMLElement ? event.target.closest('.buffer-toggle-checkbox') : null;
+      if (toggleCheckbox) {
+        includeBuffer = toggleCheckbox.checked;
+        render();
         return;
       }
-      event.preventDefault();
-      showBasePrices = !showBasePrices;
-      render();
-      const refreshedToggle = tablesContainer.querySelector('.price-reveal-toggle');
-      if (refreshedToggle instanceof HTMLButtonElement) {
-        refreshedToggle.focus();
+
+      const displayToggle = event.target instanceof HTMLElement ? event.target.closest('.display-toggle-checkbox') : null;
+      if (displayToggle) {
+        const toggleType = displayToggle.dataset.toggle;
+        if (toggleType === 'exVat') {
+          showExVat = displayToggle.checked;
+        } else if (toggleType === 'hourly') {
+          showHourlyRate = displayToggle.checked;
+        } else if (toggleType === 'annual') {
+          showAnnualIncome = displayToggle.checked;
+        }
+        render();
+        return;
       }
     });
 

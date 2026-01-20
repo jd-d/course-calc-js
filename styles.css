@@ -1780,12 +1780,6 @@
       border-color: var(--price-buffer-border);
     }
 
-    .price-line.base {
-      display: none;
-      margin-top: 8px;
-      border-style: dashed;
-    }
-
     button.price-line {
       width: 100%;
       text-align: left;
@@ -1830,19 +1824,35 @@
       border-color: var(--price-acceptable-border);
     }
 
-    .pricing-card.show-base-prices .price-line.base {
+    .price-display-toggles {
       display: flex;
-    }
-
-    .price-toggle-row {
-      display: flex;
-      justify-content: flex-end;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 12px 20px;
       margin-bottom: 12px;
     }
 
-    .price-reveal-toggle {
-      padding: 6px 12px;
-      font-size: 0.8rem;
+    .display-toggle,
+    .display-toggle--buffer {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      cursor: pointer;
+      font-size: 0.85rem;
+      color: var(--text-secondary);
+      white-space: nowrap;
+    }
+
+    .display-toggle--buffer {
+      margin-left: auto;
+    }
+
+    .display-toggle-checkbox,
+    .buffer-toggle-checkbox {
+      width: 0.95rem;
+      height: 0.95rem;
+      accent-color: var(--accent);
+      cursor: pointer;
     }
 
     .sub-label {

@@ -1669,6 +1669,29 @@
       grid-template-columns: minmax(0, 1fr);
     }
 
+    .pricing-card {
+      grid-column: 1 / -1;
+    }
+
+    .targets-card {
+      justify-self: start;
+      overflow: hidden;
+    }
+
+    .targets-card .card-scroll table {
+      width: auto;
+      min-width: 0;
+    }
+
+    .targets-card .card-scroll {
+      overflow-x: visible;
+    }
+
+    .targets-card tbody td,
+    .targets-card tbody th {
+      white-space: nowrap;
+    }
+
     table {
       width: 100%;
       border-collapse: collapse;
@@ -1787,6 +1810,7 @@
       font: inherit;
       line-height: inherit;
       padding: 8px 10px;
+      touch-action: pan-y;
     }
 
     button.price-line:focus {
@@ -1857,6 +1881,32 @@
     .card-scroll table {
       min-width: 100%;
       width: max-content;
+    }
+
+    .targets-card .card-scroll table {
+      width: auto;
+      min-width: 0;
+      max-width: 100%;
+    }
+
+    .targets-card .card-scroll {
+      overflow-x: visible;
+    }
+
+    .targets-card {
+      overflow: hidden;
+    }
+
+    .targets-card tbody td,
+    .targets-card tbody th {
+      white-space: nowrap;
+    }
+
+    @media (max-width: 600px) {
+      .targets-card tbody td,
+      .targets-card tbody th {
+        white-space: normal;
+      }
     }
 
     ul.assumptions {
@@ -6786,7 +6836,7 @@
         .join('');
 
       return `
-        <div class="card">
+        <div class="card targets-card">
           <div class="card-scroll">
             <table>
               <caption>

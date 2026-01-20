@@ -276,7 +276,7 @@
           <li>
             <a
               class="resource-link"
-              href="https://github.com/jd-d/course-pricing-calculator/blob/main/DATA_FORMAT.md"
+              href="https://github.com/jd-d/course-calc-js/blob/main/DATA_FORMAT.md"
               target="_blank"
               rel="noreferrer noopener"
             >Course Pricing Calculator data portability format</a>
@@ -302,10 +302,10 @@
         }
       } catch (error) {
         theme = prefersDark ? 'dark' : 'light';
-    }
-    document.body.dataset.theme = theme;
-    document.dispatchEvent(new CustomEvent('themechange', { detail: theme }));
-  })();
+      }
+      document.body.dataset.theme = theme;
+      document.dispatchEvent(new CustomEvent('themechange', { detail: theme }));
+    })();
   </script>
 </body>
 </html>

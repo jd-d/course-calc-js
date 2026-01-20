@@ -2,7 +2,6 @@
 
 ## High Priority (Fixes)
 - [ ] Fix that green table cell backgrounds don't display when not in fixed lesson price mode any more.
-- [ ] On touch screen when finger is on table you can't scroll up and down, can only scroll when finger right on the side, which isn't practical, scrolling up and down of whole page/site should be possible when finger on table.
 - [ ] Stop resetting acceptable income range max to 0 when it's left empty, because empty is valid as it means no upper limit.
 - [ ] When setting min max lesson price the auto-correct for the amounts is too aggressive: if one removes a value it immediately populates another higher value (perhaps assuming removal is 0 which it doesn't permit as it invalidates calculations) - relax the auto calculate here, at least wait until the user has entered a new value and left the edit box. OR use a single field that allows a range entry like: 95-105 (this might be better).
 
@@ -24,6 +23,9 @@
 - [ ] Auto-select light or dark mode by time of day but add a lock icon next to it the user can press to keep it on either. They can still manually switch the switch (they don't need to actually press the lock first) but it won't auto change if the lock is locked.
 
 ## DONE
+- [x] Fix touch scrolling on pricing table - added `touch-action: pan-y` to `button.price-line` elements so vertical scrolling works when finger is on table buttons. (2026-01-20)
+- [x] Fix JavaScript syntax error in resources.html - missing closing brace in the theme initialization IIFE catch block. (2026-01-20)
+- [x] Fix broken GitHub link in resources.html - DATA_FORMAT.md link pointed to wrong repository name (`course-pricing-calculator` instead of `course-calc-js`). (2026-01-20)
 - [x] Add JSON export/import buttons that let users move their calculator setup between browsers, saving files with a versioned schema. (2025-02-15)
 - [x] Rename Net Income section simply to Desired Income, and add two buttons: Toggle Gross/Net, and Toggle Gross/Net (lock amount). Pressing the Toggle Gross/Net button when Net incomes are being displayed will switch to displaying the equivalente gross income amounts instead. Pressing the other Toggle "Gross/Net (lock amount)" button will instead "lock" the amounts entered but regard them as Gross amounts and recalculate other values across the page accordingly. When the toggle is pressed, the section title must clearly indicate which values are being displayed, Net or Gross, by toggling between the title Desired Net Income and Desired Gross Income as appropriate. (2025-10-19)
   - [x] Add an optional acceptable income ranges section under the Desired Income section where the user can enter from and to values of what they consider an acceptable income range, and they can enter this either monthly or annually. (These also follow the new Net/Gross toggle system). (2025-10-19)

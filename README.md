@@ -8,12 +8,14 @@ The project is gradually being modularized. Currently:
 | File | Purpose |
 |------|---------|
 | `index.html` | Main application HTML structure (~1,050 lines) |
-| `styles.css` | All main application CSS (~2,040 lines) |
+| `styles.css` | All main application CSS (~2,050 lines) |
 | `app.js` | Main application JavaScript (~4,550 lines) |
 | `pwa.js` | Progressive Web App registration |
 | `service-worker.js` | Offline caching logic |
 | `resources.html` | Helpful resources page |
 | `404.html` | Custom 404 page |
+
+**Icons:** SVG icon sprites are defined at the top of `index.html` (`#icon-info`, `#icon-chevron-down`) and referenced throughout using `<svg><use href="#icon-..."></use></svg>`.
 
 **Note:** `app.js` contains embedded CSS inside a JavaScript template literal for the print report feature. This is intentional — it generates a standalone HTML document for printing.
 

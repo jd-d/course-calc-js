@@ -1109,19 +1109,25 @@
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      gap: 6px;
-      padding: 6px 12px;
-      font-size: 0.75rem;
-      font-weight: 600;
-      letter-spacing: 0.05em;
-      text-transform: uppercase;
-      border-radius: 999px;
+      width: 1.75rem;
+      height: 1.75rem;
+      padding: 0;
+      border-radius: 50%;
       border: 1px solid var(--secondary-button-border);
       background: var(--secondary-button-bg);
       color: var(--text-primary);
       box-shadow: none;
       transform: none;
-      white-space: nowrap;
+    }
+
+    .section-toggle .toggle-icon {
+      width: 0.75rem;
+      height: 0.75rem;
+      transition: transform 0.2s ease;
+    }
+
+    .section-toggle[aria-expanded="false"] .toggle-icon {
+      transform: rotate(-90deg);
     }
 
     .section-toggle:hover,
@@ -1397,10 +1403,9 @@
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      width: 1.5rem;
-      height: 1.5rem;
+      width: 1.25rem;
+      height: 1.25rem;
       border-radius: 999px;
-      font-size: 0.9rem;
       background: var(--info-bg);
       color: var(--accent);
       cursor: pointer;
@@ -1409,6 +1414,11 @@
       transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
       touch-action: manipulation;
       --tooltip-shift: 0px;
+    }
+
+    .info-icon svg {
+      width: 0.85rem;
+      height: 0.85rem;
     }
 
     .info-icon:hover,

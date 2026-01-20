@@ -23,6 +23,18 @@
   <link rel="stylesheet" href="./styles.css" />
 </head>
 <body data-theme="dark">
+  <!-- SVG Icon Sprites -->
+  <svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+    <symbol id="icon-info" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="12" cy="12" r="10"/>
+      <line x1="12" y1="16" x2="12" y2="12"/>
+      <line x1="12" y1="8" x2="12.01" y2="8"/>
+    </symbol>
+    <symbol id="icon-chevron-down" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+      <polyline points="6 9 12 15 18 9"/>
+    </symbol>
+  </svg>
+
   <div class="page">
     <nav class="top-nav">
       <a href="./resources.html" class="top-link">Helpful Resources</a>
@@ -39,7 +51,7 @@
           <span class="toggle-track" aria-hidden="true">
             <span class="toggle-thumb"></span>
           </span>
-          <span class="toggle-label">Dark mode</span>
+          
         </button>
       </div>
     </header>
@@ -62,8 +74,7 @@
                 aria-expanded="true"
                 aria-controls="section-settings"
               >
-                <span class="toggle-label">Collapse</span>
-              </button>
+                <svg class="toggle-icon"><use href="#icon-chevron-down"></use></svg></button>
             </div>
             <div class="section-body" id="section-settings">
               <div class="persist-controls" role="group" aria-labelledby="persist-settings-label">
@@ -97,7 +108,7 @@
               <div class="control">
                 <label for="currency-symbol">
                   <span class="label-text">Currency symbol</span>
-                  <span class="info-icon" tabindex="0" role="button" aria-expanded="false" aria-label="Displayed before amounts." data-tooltip="Displayed before amounts.">ℹ️</span>
+                  <span class="info-icon" tabindex="0" role="button" aria-expanded="false" aria-label="Displayed before amounts." data-tooltip="Displayed before amounts."><svg class="icon"><use href="#icon-info"></use></svg></span>
                 </label>
                 <input type="text" id="currency-symbol" value="€" maxlength="3" />
               </div>
@@ -111,8 +122,7 @@
                 aria-expanded="true"
                 aria-controls="section-settings"
               >
-                <span class="toggle-label">Collapse section</span>
-              </button>
+                <svg class="toggle-icon"><use href="#icon-chevron-down"></use></svg></button>
             </div>
           </fieldset>
 
@@ -130,8 +140,7 @@
                 aria-expanded="true"
                 aria-controls="section-desired-income"
               >
-                <span class="toggle-label">Collapse</span>
-              </button>
+                <svg class="toggle-icon"><use href="#icon-chevron-down"></use></svg></button>
             </div>
             <div class="section-body" id="section-desired-income">
               <div class="desired-income-actions" role="group" aria-label="Income display options">
@@ -160,7 +169,7 @@
                       data-gross-tooltip="Income before income taxes needed to reach your desired take-home pay."
                       data-tooltip="Amount you want to take home after income taxes."
                       aria-label="Amount you want to take home after income taxes."
-                    >ℹ️</span>
+                    ><svg class="icon"><use href="#icon-info"></use></svg></span>
                   </label>
                   <input type="number" id="target-net" value="50000" min="0" step="100" inputmode="decimal" />
                 </div>
@@ -180,7 +189,7 @@
                       data-gross-tooltip="Income before taxes earned during each active teaching week."
                       data-tooltip="Take-home pay for each active teaching week after income taxes."
                       aria-label="Take-home pay for each active teaching week after income taxes."
-                    >ℹ️</span>
+                    ><svg class="icon"><use href="#icon-info"></use></svg></span>
                   </label>
                   <input type="number" id="target-net-week" value="2000" min="0" step="50" inputmode="decimal" />
                 </div>
@@ -200,7 +209,7 @@
                       data-gross-tooltip="Income before taxes for each month you actively teach."
                       data-tooltip="Take-home pay for each month you actively teach after income taxes."
                       aria-label="Take-home pay for each month you actively teach after income taxes."
-                    >ℹ️</span>
+                    ><svg class="icon"><use href="#icon-info"></use></svg></span>
                   </label>
                   <input type="number" id="target-net-month" value="5000" min="0" step="100" inputmode="decimal" />
                 </div>
@@ -220,7 +229,7 @@
                       data-gross-tooltip="Average weekly income before taxes spread across the full year."
                       data-tooltip="Average weekly take-home pay spread across the full year."
                       aria-label="Average weekly take-home pay spread across the full year."
-                    >ℹ️</span>
+                    ><svg class="icon"><use href="#icon-info"></use></svg></span>
                   </label>
                   <input type="number" id="target-net-average-week" value="961.54" min="0" step="10" inputmode="decimal" />
                 </div>
@@ -240,7 +249,7 @@
                       data-gross-tooltip="Average monthly income before taxes spread across the full year."
                       data-tooltip="Average monthly take-home pay spread across the full year."
                       aria-label="Average monthly take-home pay spread across the full year."
-                    >ℹ️</span>
+                    ><svg class="icon"><use href="#icon-info"></use></svg></span>
                 </label>
                 <input type="number" id="target-net-average-month" value="4166.67" min="0" step="50" inputmode="decimal" />
               </div>
@@ -308,8 +317,7 @@
                 aria-expanded="true"
                 aria-controls="section-desired-income"
               >
-                  <span class="toggle-label">Collapse section</span>
-                </button>
+                  <svg class="toggle-icon"><use href="#icon-chevron-down"></use></svg></button>
               </div>
             </div>
           </fieldset>
@@ -326,8 +334,7 @@
                 aria-expanded="true"
                 aria-controls="section-safety-margin"
               >
-                <span class="toggle-label">Collapse</span>
-              </button>
+                <svg class="toggle-icon"><use href="#icon-chevron-down"></use></svg></button>
             </div>
             <div class="section-body" id="section-safety-margin">
               <p class="field-note">
@@ -343,7 +350,7 @@
                     aria-expanded="false"
                     aria-label="Adds an extra cushion on top of your desired income. The buffered pricing line uses this percentage."
                     data-tooltip="Adds an extra cushion on top of your desired income. The buffered pricing line uses this percentage."
-                  >ℹ️</span>
+                  ><svg class="icon"><use href="#icon-info"></use></svg></span>
                 </label>
                 <input type="number" id="buffer" value="15" min="0" step="1" inputmode="decimal" />
               </div>
@@ -357,66 +364,84 @@
                 aria-expanded="true"
                 aria-controls="section-safety-margin"
               >
-                <span class="toggle-label">Collapse section</span>
-              </button>
+                <svg class="toggle-icon"><use href="#icon-chevron-down"></use></svg></button>
             </div>
           </fieldset>
 
           <fieldset class="control-section" data-collapsible>
-            <legend class="section-legend visually-hidden" id="section-taxes-costs-legend">Taxes and costs</legend>
+            <legend class="section-legend visually-hidden" id="section-taxes-legend">Taxes</legend>
             <div class="section-header">
-              <span class="section-title" aria-hidden="true">Taxes and costs</span>
+              <span class="section-title" aria-hidden="true">Taxes</span>
               <button
                 type="button"
                 class="section-toggle section-toggle--top"
                 data-expanded-text="Collapse"
                 data-collapsed-text="Expand"
                 aria-expanded="true"
-                aria-controls="section-taxes-costs"
+                aria-controls="section-taxes"
               >
-                <span class="toggle-label">Collapse</span>
-              </button>
+                <svg class="toggle-icon"><use href="#icon-chevron-down"></use></svg></button>
             </div>
-            <div class="section-body" id="section-taxes-costs">
-              <div
-                class="control control-panel control--taxes"
-                role="group"
-                aria-labelledby="taxes-group-label"
-              >
-                <div class="panel-header" id="taxes-group-label">
-                  <span class="label-text">Tax rates</span>
+            <div class="section-body" id="section-taxes">
+              <div class="inline-field-pair">
+                <div class="control">
+                  <label for="tax-rate">
+                    <span class="label-text">Effective income tax rate (%)</span>
+                    <span
+                      class="info-icon"
+                      tabindex="0"
+                      role="button"
+                      aria-expanded="false"
+                      aria-label="Share of profit paid in taxes and social charges."
+                      data-tooltip="Share of profit paid in taxes and social charges."
+                    ><svg class="icon"><use href="#icon-info"></use></svg></span>
+                  </label>
+                  <input type="number" id="tax-rate" value="40" min="0" max="99" step="1" inputmode="decimal" />
                 </div>
-                <div class="inline-field-pair">
-                  <div class="control control--nested">
-                    <label for="tax-rate">
-                      <span class="label-text">Effective income tax rate (%)</span>
-                      <span
-                        class="info-icon"
-                        tabindex="0"
-                        role="button"
-                        aria-expanded="false"
-                        aria-label="Share of profit paid in taxes and social charges."
-                        data-tooltip="Share of profit paid in taxes and social charges."
-                      >ℹ️</span>
-                    </label>
-                    <input type="number" id="tax-rate" value="40" min="0" max="99" step="1" inputmode="decimal" />
-                  </div>
-                  <div class="control control--nested">
-                    <label for="vat-rate">
-                      <span class="label-text">VAT/ BTW (%)</span>
-                      <span
-                        class="info-icon"
-                        tabindex="0"
-                        role="button"
-                        aria-expanded="false"
-                        aria-label="Modify if the services you offer fall into a lower VAT band."
-                        data-tooltip="Modify if the services you offer fall into a lower VAT band."
-                      >ℹ️</span>
-                    </label>
-                    <input type="number" id="vat-rate" value="21" min="0" step="0.1" inputmode="decimal" />
-                  </div>
+                <div class="control">
+                  <label for="vat-rate">
+                    <span class="label-text">VAT / BTW (%)</span>
+                    <span
+                      class="info-icon"
+                      tabindex="0"
+                      role="button"
+                      aria-expanded="false"
+                      aria-label="Modify if the services you offer fall into a lower VAT band."
+                      data-tooltip="Modify if the services you offer fall into a lower VAT band."
+                    ><svg class="icon"><use href="#icon-info"></use></svg></span>
+                  </label>
+                  <input type="number" id="vat-rate" value="21" min="0" step="0.1" inputmode="decimal" />
                 </div>
               </div>
+              <div class="section-footer">
+                <button
+                  type="button"
+                  class="section-toggle section-toggle--bottom"
+                  data-expanded-text="Collapse section"
+                  data-collapsed-text="Expand section"
+                  aria-expanded="true"
+                  aria-controls="section-taxes"
+                >
+                  <svg class="toggle-icon"><use href="#icon-chevron-down"></use></svg></button>
+              </div>
+            </div>
+          </fieldset>
+
+          <fieldset class="control-section" data-collapsible>
+            <legend class="section-legend visually-hidden" id="section-costs-legend">Costs</legend>
+            <div class="section-header">
+              <span class="section-title" aria-hidden="true">Costs</span>
+              <button
+                type="button"
+                class="section-toggle section-toggle--top"
+                data-expanded-text="Collapse"
+                data-collapsed-text="Expand"
+                aria-expanded="true"
+                aria-controls="section-costs"
+              >
+                <svg class="toggle-icon"><use href="#icon-chevron-down"></use></svg></button>
+            </div>
+            <div class="section-body" id="section-costs">
               <div class="control control--fixed-costs">
                 <div class="fixed-costs-header">
                   <span class="label-text">Fixed costs</span>
@@ -427,7 +452,7 @@
                     aria-expanded="false"
                     aria-label="Break down ongoing expenses like venue, insurance, pension, health cover, marketing, materials, and admin."
                     data-tooltip="Break down ongoing expenses like venue, insurance, pension, health cover, marketing, materials, and admin."
-                  >ℹ️</span>
+                  ><svg class="icon"><use href="#icon-info"></use></svg></span>
                 </div>
                 <p class="field-note">
                   Enter either the monthly or annual amount for each category. The other column updates automatically. Think about rent, business insurance, disability cover (AOV), pension contributions, health insurance, marketing, materials, software, and training.
@@ -581,7 +606,7 @@
                         aria-expanded="false"
                         aria-label="Expenses that apply each time you run a class, such as room hire or transport."
                         data-tooltip="Expenses that apply each time you run a class, such as room hire or transport."
-                      >ℹ️</span>
+                      ><svg class="icon"><use href="#icon-info"></use></svg></span>
                     </label>
                     <input type="number" id="variable-cost-class" value="0" min="0" step="0.01" inputmode="decimal" />
                   </div>
@@ -595,7 +620,7 @@
                         aria-expanded="false"
                         aria-label="Per-student expenses like materials or refreshments."
                         data-tooltip="Per-student expenses like materials or refreshments."
-                      >ℹ️</span>
+                      ><svg class="icon"><use href="#icon-info"></use></svg></span>
                     </label>
                     <input type="number" id="variable-cost-student" value="0" min="0" step="0.01" inputmode="decimal" />
                   </div>
@@ -609,7 +634,7 @@
                         aria-expanded="false"
                         aria-label="Monthly expenses applied per student and scaled by class size (e.g. software licences)."
                         data-tooltip="Monthly expenses applied per student and scaled by class size (e.g. software licences)."
-                      >ℹ️</span>
+                      ><svg class="icon"><use href="#icon-info"></use></svg></span>
                     </label>
                     <input type="number" id="variable-cost-student-monthly" value="0" min="0" step="0.01" inputmode="decimal" />
                   </div>
@@ -622,10 +647,9 @@
                   data-expanded-text="Collapse section"
                   data-collapsed-text="Expand section"
                   aria-expanded="true"
-                  aria-controls="section-taxes-costs"
+                  aria-controls="section-costs"
                 >
-                  <span class="toggle-label">Collapse section</span>
-                </button>
+                  <svg class="toggle-icon"><use href="#icon-chevron-down"></use></svg></button>
               </div>
             </div>
           </fieldset>
@@ -642,21 +666,20 @@
                 aria-expanded="true"
                 aria-controls="section-schedule-capacity"
               >
-                <span class="toggle-label">Collapse</span>
-              </button>
+                <svg class="toggle-icon"><use href="#icon-chevron-down"></use></svg></button>
             </div>
             <div class="section-body" id="section-schedule-capacity">
               <div class="control">
                 <label for="classes-per-week">
                   <span class="label-text">Classes per week</span>
-                  <span class="info-icon" tabindex="0" role="button" aria-expanded="false" aria-label="Comma-separated integers or ranges (e.g. 4,5 or 3-8)." data-tooltip="Comma-separated integers or ranges (e.g. 4,5 or 3-8).">ℹ️</span>
+                  <span class="info-icon" tabindex="0" role="button" aria-expanded="false" aria-label="Comma-separated integers or ranges (e.g. 4,5 or 3-8)." data-tooltip="Comma-separated integers or ranges (e.g. 4,5 or 3-8)."><svg class="icon"><use href="#icon-info"></use></svg></span>
                 </label>
                 <input type="text" id="classes-per-week" value="4,5" autocomplete="off" />
               </div>
               <div class="control">
                 <label for="students-per-class">
                   <span class="label-text">Students per class</span>
-                  <span class="info-icon" tabindex="0" role="button" aria-expanded="false" aria-label="Comma-separated integers or ranges (e.g. 5-12)." data-tooltip="Comma-separated integers or ranges (e.g. 5-12).">ℹ️</span>
+                  <span class="info-icon" tabindex="0" role="button" aria-expanded="false" aria-label="Comma-separated integers or ranges (e.g. 5-12)." data-tooltip="Comma-separated integers or ranges (e.g. 5-12)."><svg class="icon"><use href="#icon-info"></use></svg></span>
                 </label>
                 <input type="text" id="students-per-class" value="4,6,8" autocomplete="off" />
               </div>
@@ -670,7 +693,7 @@
                     aria-expanded="false"
                     aria-label="Length of each lesson in hours (e.g. 1.5)."
                     data-tooltip="Length of each lesson in hours (e.g. 1.5)."
-                  >ℹ️</span>
+                  ><svg class="icon"><use href="#icon-info"></use></svg></span>
                 </label>
                 <input type="number" id="hours-per-lesson" value="1" min="0.25" step="0.25" inputmode="decimal" />
               </div>
@@ -683,8 +706,7 @@
                   aria-expanded="true"
                   aria-controls="section-schedule-capacity"
                 >
-                  <span class="toggle-label">Collapse section</span>
-                </button>
+                  <svg class="toggle-icon"><use href="#icon-chevron-down"></use></svg></button>
               </div>
             </div>
           </fieldset>
@@ -703,8 +725,7 @@
                 aria-expanded="true"
                 aria-controls="section-manual-override"
               >
-                <span class="toggle-label">Collapse</span>
-              </button>
+                <svg class="toggle-icon"><use href="#icon-chevron-down"></use></svg></button>
             </div>
             <div class="section-body" id="section-manual-override">
               <div class="control">
@@ -716,7 +737,7 @@
                     role="button" aria-expanded="false"
                     aria-label="Set a fixed per-student lesson price including VAT."
                     data-tooltip="Set a fixed per-student lesson price including VAT."
-                  >ℹ️</span>
+                  ><svg class="icon"><use href="#icon-info"></use></svg></span>
                 </label>
                 <input type="number" id="lesson-cost" min="0" step="0.01" inputmode="decimal" />
                 <p class="field-note">Entering a lesson price updates the net income values above.</p>
@@ -752,8 +773,7 @@
                   aria-expanded="true"
                   aria-controls="section-manual-override"
                 >
-                  <span class="toggle-label">Collapse section</span>
-                </button>
+                  <svg class="toggle-icon"><use href="#icon-chevron-down"></use></svg></button>
               </div>
             </div>
           </fieldset>
@@ -770,21 +790,20 @@
                 aria-expanded="true"
                 aria-controls="section-time-off"
               >
-                <span class="toggle-label">Collapse</span>
-              </button>
+                <svg class="toggle-icon"><use href="#icon-chevron-down"></use></svg></button>
             </div>
             <div class="section-body" id="section-time-off">
               <div class="control">
                 <label for="months-off">
                   <span class="label-text">Months off per year</span>
-                  <span class="info-icon" tabindex="0" role="button" aria-expanded="false" aria-label="Total months you plan to take completely off." data-tooltip="Total months you plan to take completely off.">ℹ️</span>
+                  <span class="info-icon" tabindex="0" role="button" aria-expanded="false" aria-label="Total months you plan to take completely off." data-tooltip="Total months you plan to take completely off."><svg class="icon"><use href="#icon-info"></use></svg></span>
                 </label>
                 <input type="number" id="months-off" value="2" min="0" max="12" step="0.5" inputmode="decimal" />
               </div>
               <div class="control">
                 <label for="weeks-off-cycle">
                   <span class="label-text">Weeks off per 4-week cycle</span>
-                  <span class="info-icon" tabindex="0" role="button" aria-expanded="false" aria-label="For example, 1 week off means working 3 weeks out of every 4." data-tooltip="For example, 1 week off means working 3 weeks out of every 4.">ℹ️</span>
+                  <span class="info-icon" tabindex="0" role="button" aria-expanded="false" aria-label="For example, 1 week off means working 3 weeks out of every 4." data-tooltip="For example, 1 week off means working 3 weeks out of every 4."><svg class="icon"><use href="#icon-info"></use></svg></span>
                 </label>
                 <input type="number" id="weeks-off-cycle" value="1" min="0" max="4" step="0.25" inputmode="decimal" />
               </div>
@@ -798,21 +817,21 @@
                     aria-expanded="false"
                     aria-label="Defaults to a typical weekend off in a 7-day week but supports partial-day values."
                     data-tooltip="Defaults to a typical weekend off in a 7-day week but supports partial-day values."
-                  >ℹ️</span>
+                  ><svg class="icon"><use href="#icon-info"></use></svg></span>
                 </label>
                 <input type="number" id="days-off-week" value="2" min="0" max="7" step="0.25" inputmode="decimal" />
               </div>
               <div class="control">
                 <label>
                   <span class="label-text">Estimated working weeks per year</span>
-                  <span class="info-icon" tabindex="0" role="button" aria-expanded="false" aria-label="Calculated from the schedule above." data-tooltip="Calculated from the schedule above.">ℹ️</span>
+                  <span class="info-icon" tabindex="0" role="button" aria-expanded="false" aria-label="Calculated from the schedule above." data-tooltip="Calculated from the schedule above."><svg class="icon"><use href="#icon-info"></use></svg></span>
                 </label>
                 <output id="working-weeks-display" class="output-field">32.5</output>
               </div>
               <div class="control">
                 <label>
                   <span class="label-text">Estimated working days per year</span>
-                  <span class="info-icon" tabindex="0" role="button" aria-expanded="false" aria-label="Working weeks × working days per active week." data-tooltip="Working weeks × working days per active week.">ℹ️</span>
+                  <span class="info-icon" tabindex="0" role="button" aria-expanded="false" aria-label="Working weeks × working days per active week." data-tooltip="Working weeks × working days per active week."><svg class="icon"><use href="#icon-info"></use></svg></span>
                 </label>
                 <output id="working-days-display" class="output-field">130</output>
               </div>
@@ -825,8 +844,7 @@
                   aria-expanded="true"
                   aria-controls="section-time-off"
                 >
-                  <span class="toggle-label">Collapse section</span>
-                </button>
+                  <svg class="toggle-icon"><use href="#icon-chevron-down"></use></svg></button>
               </div>
             </div>
           </fieldset>

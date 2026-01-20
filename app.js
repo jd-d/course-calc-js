@@ -111,15 +111,6 @@
 
       const expandedText = toggle.getAttribute('data-expanded-text') || 'Collapse section';
       const collapsedText = toggle.getAttribute('data-collapsed-text') || 'Expand section';
-      const labelElement = toggle.querySelector('.toggle-label');
-      const nextText = collapsed ? collapsedText : expandedText;
-
-      if (labelElement) {
-        labelElement.textContent = nextText;
-      } else {
-        toggle.textContent = nextText;
-      }
-
       const actionText = collapsed ? collapsedText : expandedText;
       const normalizedAction = actionText.replace(/\s+section$/i, '');
       const normalizedLabel = sectionLabel || 'section';
@@ -3760,7 +3751,7 @@
                   aria-expanded="false"
                   aria-label="“Active” periods exclude the time you planned off (months, weeks, and days away from teaching)."
                   data-tooltip="“Active” periods exclude the time you planned off (months, weeks, and days away from teaching)."
-                >ℹ️</span>
+                <svg class="icon"><use href="#icon-info"></use></svg></span>
               </caption>
               <thead>
                 <tr>

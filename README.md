@@ -1,6 +1,21 @@
 # course-pricing-calculator
 Something for working out costs and income.
 
+## Architecture
+
+The project is gradually being modularized. Currently:
+
+| File | Purpose |
+|------|---------|
+| `index.html` | Main application HTML + JavaScript (~5,600 lines) |
+| `styles.css` | All main application CSS (~2,040 lines) |
+| `pwa.js` | Progressive Web App registration |
+| `service-worker.js` | Offline caching logic |
+| `resources.html` | Helpful resources page |
+| `404.html` | Custom 404 page |
+
+**Note:** `index.html` still contains embedded CSS inside a JavaScript template literal for the print report feature. This is intentional — it generates a standalone HTML document for printing.
+
 ## Progressive Web App support
 The calculator now exposes a web app manifest and service worker so it can be installed on supported devices and keep working offline. Static assets and core pages are precached, and subsequent navigation attempts fall back to the cached calculator when the network is unavailable.
 

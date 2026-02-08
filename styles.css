@@ -56,6 +56,10 @@
       --toggle-thumb-shadow: rgba(0, 0, 0, 0.35);
       --focus-ring: rgba(77, 163, 255, 0.25);
       --focus-outline: rgba(77, 163, 255, 0.55);
+      --error-text: #ff7b7b;
+      --error-border: rgba(255, 123, 123, 0.8);
+      --error-bg: rgba(255, 123, 123, 0.2);
+      --error-focus: rgba(255, 123, 123, 0.3);
       --inactive-bg: rgba(255, 76, 96, 0.12);
       --inactive-border: rgba(255, 76, 96, 0.45);
       --inactive-text: #ff93a6;
@@ -126,6 +130,10 @@
       --toggle-thumb-shadow: rgba(15, 23, 42, 0.25);
       --focus-ring: rgba(37, 99, 235, 0.28);
       --focus-outline: rgba(37, 99, 235, 0.55);
+      --error-text: #dc2626;
+      --error-border: rgba(220, 38, 38, 0.6);
+      --error-bg: rgba(220, 38, 38, 0.18);
+      --error-focus: rgba(220, 38, 38, 0.24);
       --inactive-bg: rgba(239, 68, 68, 0.12);
       --inactive-border: rgba(220, 38, 38, 0.35);
       --inactive-text: #c53030;
@@ -1431,6 +1439,21 @@
       box-shadow: 0 0 0 3px var(--focus-ring);
     }
 
+    .info-icon.info-icon--error {
+      background: var(--error-bg);
+      border-color: var(--error-border);
+      color: var(--error-text);
+    }
+
+    .info-icon.info-icon--error:hover,
+    .info-icon.info-icon--error:focus-visible,
+    .info-icon.info-icon--error.is-active {
+      background: var(--error-bg);
+      border-color: var(--error-border);
+      color: var(--error-text);
+      box-shadow: 0 0 0 3px var(--error-focus);
+    }
+
     .info-icon__tooltip {
       position: absolute;
       bottom: calc(100% + 8px);
@@ -1448,6 +1471,11 @@
       pointer-events: none;
       transition: opacity 0.15s ease, transform 0.15s ease;
       z-index: 10;
+    }
+
+    .info-icon__error {
+      color: var(--error-text);
+      font-weight: 600;
     }
 
     .info-icon__arrow {
@@ -1490,6 +1518,18 @@
       outline: none;
       border-color: var(--accent);
       box-shadow: 0 0 0 3px var(--focus-ring);
+    }
+
+    input[type="number"].field-error,
+    input[type="text"].field-error {
+      border-color: var(--error-border);
+      color: var(--error-text);
+    }
+
+    input[type="number"].field-error:focus,
+    input[type="text"].field-error:focus {
+      border-color: var(--error-border);
+      box-shadow: 0 0 0 3px var(--error-focus);
     }
 
     .control output {

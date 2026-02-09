@@ -735,12 +735,12 @@
                     class="info-icon"
                     tabindex="0"
                     role="button" aria-expanded="false"
-                    aria-label="Set a fixed per-student lesson price including VAT."
-                    data-tooltip="Set a fixed per-student lesson price including VAT."
+                    aria-label="Set one or up to four comma-separated per-student lesson prices including VAT."
+                    data-tooltip="Set one or up to four comma-separated per-student lesson prices including VAT."
                   ><svg class="icon"><use href="#icon-info"></use></svg></span>
                 </label>
-                <input type="number" id="lesson-cost" min="0" step="0.01" inputmode="decimal" />
-                <p class="field-note">Entering a lesson price updates the net income values above.</p>
+                <input type="text" id="lesson-cost" inputmode="text" autocomplete="off" placeholder="95, 105, 115" />
+                <p class="field-note">Use up to 4 comma-separated prices. Each price appears in its own mini box in the table cells.</p>
               </div>
               <div
                 class="control control-panel control--lesson-price-range"

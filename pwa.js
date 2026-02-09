@@ -1,6 +1,7 @@
 (function () {
   const DARK_THEME_COLOR = '#0a0c12';
   const LIGHT_THEME_COLOR = '#eff4ff';
+  const SERVICE_WORKER_VERSION = '2026-02-08-v1';
   const themeColorMeta = document.querySelector('meta[name="theme-color"]');
 
   function resolveTheme(value) {
@@ -22,10 +23,14 @@
 
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
-      const serviceWorkerUrl = new URL('./service-worker.js', document.baseURI).href;
-      navigator.serviceWorker.register(serviceWorkerUrl, { scope: './' }).catch(error => {
-        console.error('Service worker registration failed:', error);
-      });
+      const serviceWorkerUrl = new URL(`./service-worker.js?v=${SERVICE_WORKER_VERSION}`, document.baseURI).href;
+      navigator.serviceWorker.register(serviceWorkerUrl, { scope: './' })
+        .then(registration => {
+          registration.update().catch(() => {});
+        })
+        .catch(error => {
+          console.error('Service worker registration failed:', error);
+        });
     });
   }
 

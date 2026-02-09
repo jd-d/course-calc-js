@@ -704,9 +704,7 @@
         currencySymbol: latestInputsSnapshot?.currencySymbol || latestCurrencySymbol,
         pricingMode: latestPricingMode,
         bufferPercent: latestBufferPercent,
-        bufferedMonthlyNet: latestPricingMode === PRICING_MODE_LESSON
-          ? combination.column?.manualNet?.bufferedMonthly
-          : combination.column?.buffered?.monthlyNet
+        bufferedMonthlyNet: combination.column?.buffered?.monthlyNet
       });
 
       if (!reportHtml) {
@@ -962,7 +960,7 @@
         return;
       }
       if (Number.isFinite(value)) {
-        field.dataset.netValue = String(value);
+        field.dataset.netValue = String(Math.max(value, 0));
       } else {
         delete field.dataset.netValue;
       }
@@ -1165,10 +1163,16 @@
 
     const WEEKS_PER_YEAR = 52;
     const MONTHS_PER_YEAR = 12;
+    const DEFAULT_MONTHS_OFF = 2;
+    const DEFAULT_WEEKS_OFF_YEAR = (DEFAULT_MONTHS_OFF / MONTHS_PER_YEAR) * WEEKS_PER_YEAR;
     const FIELD_ERROR_CLASS = 'field-error';
     const INFO_ICON_ERROR_CLASS = 'info-icon--error';
-    const ERROR_MESSAGE_INVALID = 'invalid value';
-    const ERROR_MESSAGE_EMPTY = 'field cannot be empty';
+    const ERROR_MESSAGE_INVALID = 'please enter a valid number';
+    const ERROR_MESSAGE_EMPTY = 'this field is required';
+    const ERROR_MESSAGE_RANGE_ORDER = 'min cannot be greater than max';
+    const MAX_MANUAL_LESSON_PRICE_OPTIONS = 4;
+    const ERROR_MESSAGE_LESSON_PRICE_LIST_FORMAT = 'use comma-separated prices (for example: 95, 105)';
+    const ERROR_MESSAGE_LESSON_PRICE_LIST_MAX = `enter up to ${MAX_MANUAL_LESSON_PRICE_OPTIONS} prices`;
     const BASE_WORK_DAYS_PER_WEEK = 7;
     const TARGET_NET_DEFAULT = 50000;
 
@@ -1273,6 +1277,10 @@
 
         const isEditing = field.dataset.editing === 'true';
         const isInvalid = field.classList.contains(FIELD_ERROR_CLASS);
+
+        if (Number.isFinite(netValue)) {
+          netValue = Math.max(netValue, 0);
+        }
 
         if (!Number.isFinite(netValue)) {
           if (!isEditing || forceUpdate) {
@@ -1495,8 +1503,12 @@
 
     const rememberInputsToggle = controls.rememberInputs instanceof HTMLInputElement ? controls.rememberInputs : null;
     const resetSavedInputsButton = controls.resetSavedInputs instanceof HTMLButtonElement ? controls.resetSavedInputs : null;
-    const PERSISTENCE_ENABLED_KEY = 'course-pricing-save-enabled';
-    const PERSISTENCE_VALUES_KEY = 'course-pricing-saved-inputs';
+    const PERSISTENCE_SCHEMA_VERSION = '2';
+    const LEGACY_PERSISTENCE_ENABLED_KEY = 'course-pricing-save-enabled';
+    const LEGACY_PERSISTENCE_VALUES_KEY = 'course-pricing-saved-inputs';
+    const PERSISTENCE_ENABLED_KEY = `${LEGACY_PERSISTENCE_ENABLED_KEY}-v${PERSISTENCE_SCHEMA_VERSION}`;
+    const PERSISTENCE_VALUES_KEY = `${LEGACY_PERSISTENCE_VALUES_KEY}-v${PERSISTENCE_SCHEMA_VERSION}`;
+    const PERSISTENCE_SCHEMA_META_KEY = '__persistenceSchemaVersion';
     const DATA_PORTABILITY_FORMAT = 'course-pricing-calculator';
     const DATA_PORTABILITY_VERSION = '1.0.0';
     const dataPortabilityVersionElement = document.getElementById('data-portability-version');
@@ -1511,6 +1523,96 @@
     updateDesiredIncomeTitle();
     updateDesiredIncomeLabels();
     updateAcceptableIncomeBasisLabel();
+
+    function normalizeLessonCostPersistedValue(value) {
+      if (typeof value === 'string') {
+        return value;
+      }
+      if (typeof value === 'number' && Number.isFinite(value)) {
+        return String(value);
+      }
+      if (Array.isArray(value)) {
+        const normalizedValues = value
+          .map(entry => Number(entry))
+          .filter(entry => Number.isFinite(entry) && entry >= 0)
+          .slice(0, MAX_MANUAL_LESSON_PRICE_OPTIONS)
+          .map(entry => formatFixed(entry, 2));
+        return normalizedValues.join(', ');
+      }
+      return '';
+    }
+
+    function normalizePersistedInputValues(values) {
+      if (!values || typeof values !== 'object') {
+        return null;
+      }
+
+      const normalized = { ...values };
+      normalized[PERSISTENCE_SCHEMA_META_KEY] = PERSISTENCE_SCHEMA_VERSION;
+
+      if (Object.prototype.hasOwnProperty.call(normalized, 'lesson-cost')) {
+        normalized['lesson-cost'] = normalizeLessonCostPersistedValue(normalized['lesson-cost']);
+      }
+
+      Object.keys(desiredIncomeFieldMap).forEach(key => {
+        const netKey = `__desiredIncomeNet_${key}`;
+        const parsed = Number(normalized[netKey]);
+        normalized[netKey] = Number.isFinite(parsed) ? Math.max(parsed, 0) : null;
+      });
+
+      const acceptableMin = Number(normalized[PERSISTED_ACCEPTABLE_INCOME_MIN_KEY]);
+      if (Number.isFinite(acceptableMin)) {
+        normalized[PERSISTED_ACCEPTABLE_INCOME_MIN_KEY] = Math.max(acceptableMin, 0);
+      } else if (
+        normalized[PERSISTED_ACCEPTABLE_INCOME_MIN_KEY] !== null
+        && typeof normalized[PERSISTED_ACCEPTABLE_INCOME_MIN_KEY] !== 'undefined'
+      ) {
+        normalized[PERSISTED_ACCEPTABLE_INCOME_MIN_KEY] = null;
+      }
+
+      const acceptableMax = Number(normalized[PERSISTED_ACCEPTABLE_INCOME_MAX_KEY]);
+      if (Number.isFinite(acceptableMax)) {
+        normalized[PERSISTED_ACCEPTABLE_INCOME_MAX_KEY] = Math.max(acceptableMax, 0);
+      } else if (
+        normalized[PERSISTED_ACCEPTABLE_INCOME_MAX_KEY] !== null
+        && typeof normalized[PERSISTED_ACCEPTABLE_INCOME_MAX_KEY] !== 'undefined'
+      ) {
+        normalized[PERSISTED_ACCEPTABLE_INCOME_MAX_KEY] = null;
+      }
+
+      return normalized;
+    }
+
+    function migrateLegacyPersistenceIfNeeded() {
+      try {
+        const hasVersionedEnabled = localStorage.getItem(PERSISTENCE_ENABLED_KEY);
+        const hasVersionedValues = localStorage.getItem(PERSISTENCE_VALUES_KEY);
+        if (hasVersionedEnabled !== null || hasVersionedValues !== null) {
+          return;
+        }
+
+        const legacyEnabled = localStorage.getItem(LEGACY_PERSISTENCE_ENABLED_KEY);
+        const legacyValuesRaw = localStorage.getItem(LEGACY_PERSISTENCE_VALUES_KEY);
+
+        if (legacyValuesRaw) {
+          try {
+            const parsedLegacyValues = JSON.parse(legacyValuesRaw);
+            const normalizedLegacyValues = normalizePersistedInputValues(parsedLegacyValues);
+            if (normalizedLegacyValues) {
+              localStorage.setItem(PERSISTENCE_VALUES_KEY, JSON.stringify(normalizedLegacyValues));
+            }
+          } catch (error) {
+            // Ignore malformed legacy data.
+          }
+        }
+
+        if (legacyEnabled === 'true' || legacyEnabled === 'false') {
+          localStorage.setItem(PERSISTENCE_ENABLED_KEY, legacyEnabled);
+        }
+      } catch (error) {
+        // Ignore storage errors.
+      }
+    }
 
     function getPersistableInputs() {
       if (persistableInputsCache) {
@@ -1554,6 +1656,7 @@
         const netValue = readDesiredIncomeNet(key, null);
         values[`__desiredIncomeNet_${key}`] = Number.isFinite(netValue) ? netValue : null;
       });
+      values[PERSISTENCE_SCHEMA_META_KEY] = PERSISTENCE_SCHEMA_VERSION;
       return values;
     }
 
@@ -1696,7 +1799,11 @@
 
     function readPersistenceEnabled() {
       try {
-        return localStorage.getItem(PERSISTENCE_ENABLED_KEY) === 'true';
+        const current = localStorage.getItem(PERSISTENCE_ENABLED_KEY);
+        if (current === 'true' || current === 'false') {
+          return current === 'true';
+        }
+        return localStorage.getItem(LEGACY_PERSISTENCE_ENABLED_KEY) === 'true';
       } catch (error) {
         return false;
       }
@@ -1704,13 +1811,27 @@
 
     function readPersistedValues() {
       try {
-        const raw = localStorage.getItem(PERSISTENCE_VALUES_KEY);
-        if (!raw) {
+        const parseAndNormalize = raw => {
+          if (!raw) {
+            return null;
+          }
+          const parsed = JSON.parse(raw);
+          if (parsed && typeof parsed === 'object') {
+            return normalizePersistedInputValues(parsed);
+          }
           return null;
+        };
+
+        const currentRaw = localStorage.getItem(PERSISTENCE_VALUES_KEY);
+        const currentValues = parseAndNormalize(currentRaw);
+        if (currentValues) {
+          return currentValues;
         }
-        const parsed = JSON.parse(raw);
-        if (parsed && typeof parsed === 'object') {
-          return parsed;
+
+        const legacyRaw = localStorage.getItem(LEGACY_PERSISTENCE_VALUES_KEY);
+        const legacyValues = parseAndNormalize(legacyRaw);
+        if (legacyValues) {
+          return legacyValues;
         }
       } catch (error) {
         // Ignore parsing errors
@@ -1722,6 +1843,8 @@
       try {
         localStorage.removeItem(PERSISTENCE_VALUES_KEY);
         localStorage.removeItem(PERSISTENCE_ENABLED_KEY);
+        localStorage.removeItem(LEGACY_PERSISTENCE_VALUES_KEY);
+        localStorage.removeItem(LEGACY_PERSISTENCE_ENABLED_KEY);
       } catch (error) {
         // Ignore storage errors
       }
@@ -1831,9 +1954,14 @@
         return;
       }
       try {
-        const values = captureInputValues();
+        const values = normalizePersistedInputValues(captureInputValues());
+        if (!values) {
+          return;
+        }
         localStorage.setItem(PERSISTENCE_VALUES_KEY, JSON.stringify(values));
         localStorage.setItem(PERSISTENCE_ENABLED_KEY, 'true');
+        localStorage.removeItem(LEGACY_PERSISTENCE_VALUES_KEY);
+        localStorage.removeItem(LEGACY_PERSISTENCE_ENABLED_KEY);
       } catch (error) {
         persistenceEnabled = false;
         if (rememberInputsToggle) {
@@ -1855,6 +1983,8 @@
     }
 
     function initializePersistence() {
+      migrateLegacyPersistenceIfNeeded();
+
       if (rememberInputsToggle) {
         rememberInputsToggle.checked = readPersistenceEnabled();
         persistenceEnabled = rememberInputsToggle.checked;
@@ -2218,6 +2348,64 @@
       return control ? control.querySelector('.info-icon') : null;
     }
 
+    function getFieldErrorMessageElement(input) {
+      if (!(input instanceof HTMLInputElement) || !input.id) {
+        return null;
+      }
+      const control = input.closest('.control');
+      if (!(control instanceof HTMLElement)) {
+        return null;
+      }
+      const errorId = `${input.id}-error`;
+      const existing = document.getElementById(errorId);
+      if (existing instanceof HTMLElement && control.contains(existing)) {
+        return existing;
+      }
+      const message = document.createElement('span');
+      message.id = errorId;
+      message.className = 'visually-hidden';
+      control.appendChild(message);
+      return message;
+    }
+
+    function applyFieldValidationA11yState(input, message) {
+      if (!(input instanceof HTMLInputElement)) {
+        return;
+      }
+
+      const hasMessage = Boolean(message);
+      input.setAttribute('aria-invalid', hasMessage ? 'true' : 'false');
+
+      if (input.dataset.validationBaseDescribedby === undefined) {
+        input.dataset.validationBaseDescribedby = input.getAttribute('aria-describedby') || '';
+      }
+
+      const messageElement = getFieldErrorMessageElement(input);
+      if (messageElement) {
+        messageElement.textContent = hasMessage ? message : '';
+      }
+
+      const baseIds = (input.dataset.validationBaseDescribedby || '')
+        .split(/\s+/)
+        .map(id => id.trim())
+        .filter(Boolean);
+
+      if (hasMessage && messageElement) {
+        if (!baseIds.includes(messageElement.id)) {
+          baseIds.push(messageElement.id);
+        }
+        input.setAttribute('aria-describedby', baseIds.join(' '));
+        input.setAttribute('aria-errormessage', messageElement.id);
+      } else {
+        if (baseIds.length) {
+          input.setAttribute('aria-describedby', baseIds.join(' '));
+        } else {
+          input.removeAttribute('aria-describedby');
+        }
+        input.removeAttribute('aria-errormessage');
+      }
+    }
+
     function applyFieldValidationState(input, message) {
       if (!(input instanceof HTMLInputElement)) {
         return;
@@ -2227,6 +2415,7 @@
       } else {
         input.classList.remove(FIELD_ERROR_CLASS);
       }
+      applyFieldValidationA11yState(input, message);
       const infoIcon = getFieldInfoIcon(input);
       if (infoIcon) {
         if (message) {
@@ -2259,6 +2448,66 @@
     function getCurrentTaxRate() {
       const percent = Math.min(Math.max(parseNumber(controls.taxRate?.value, 40), 0), 99.9);
       return percent / 100;
+    }
+
+    function parseManualLessonPriceList(rawValue, { maxCount = MAX_MANUAL_LESSON_PRICE_OPTIONS } = {}) {
+      const raw = rawValue === null || rawValue === undefined
+        ? ''
+        : String(rawValue).trim();
+
+      if (!raw) {
+        return {
+          values: [],
+          valid: true,
+          empty: true,
+          message: null
+        };
+      }
+
+      const rawTokens = raw.split(',');
+      const tokens = [];
+      for (const token of rawTokens) {
+        const normalizedToken = token.trim();
+        if (!normalizedToken) {
+          return {
+            values: [],
+            valid: false,
+            empty: false,
+            message: ERROR_MESSAGE_LESSON_PRICE_LIST_FORMAT
+          };
+        }
+        tokens.push(normalizedToken);
+      }
+
+      if (tokens.length > maxCount) {
+        return {
+          values: [],
+          valid: false,
+          empty: false,
+          message: ERROR_MESSAGE_LESSON_PRICE_LIST_MAX
+        };
+      }
+
+      const values = [];
+      for (const token of tokens) {
+        const parsed = Number(token);
+        if (!Number.isFinite(parsed) || parsed < 0) {
+          return {
+            values: [],
+            valid: false,
+            empty: false,
+            message: ERROR_MESSAGE_LESSON_PRICE_LIST_FORMAT
+          };
+        }
+        values.push(parsed);
+      }
+
+      return {
+        values,
+        valid: true,
+        empty: false,
+        message: null
+      };
     }
 
     function parseList(value) {
@@ -2452,13 +2701,13 @@
       });
 
       const monthsOffState = validateNumberInput(controls.monthsOff, {
-        fallback: 2,
+        fallback: DEFAULT_MONTHS_OFF,
         min: 0,
         max: MONTHS_PER_YEAR,
         required: true
       });
       const weeksOffYearState = validateNumberInput(controls.weeksOffYear, {
-        fallback: (monthsOffState.value / MONTHS_PER_YEAR) * WEEKS_PER_YEAR,
+        fallback: DEFAULT_WEEKS_OFF_YEAR,
         min: 0,
         max: WEEKS_PER_YEAR,
         required: true
@@ -2487,6 +2736,10 @@
         monthsOff = (weeksOffYearState.value / WEEKS_PER_YEAR) * MONTHS_PER_YEAR;
       } else if (timeOffSyncSource === 'months' && monthsOffState.valid) {
         weeksOffYear = (monthsOffState.value / MONTHS_PER_YEAR) * WEEKS_PER_YEAR;
+      } else if (monthsOffState.valid) {
+        weeksOffYear = (monthsOffState.value / MONTHS_PER_YEAR) * WEEKS_PER_YEAR;
+      } else if (weeksOffYearState.valid) {
+        monthsOff = (weeksOffYearState.value / WEEKS_PER_YEAR) * MONTHS_PER_YEAR;
       }
 
       const weeksOffPerCycle = weeksOffCycleState.value;
@@ -2508,11 +2761,11 @@
 
       Object.values(fixedCostFields).forEach(fieldSet => {
         if (fieldSet.monthly instanceof HTMLInputElement) {
-          const state = validateNumberInput(fieldSet.monthly, { fallback: 0, min: 0, required: true });
+          const state = validateNumberInput(fieldSet.monthly, { fallback: 0, min: 0, required: false });
           applyFieldValidationState(fieldSet.monthly, state.message);
         }
         if (fieldSet.annual instanceof HTMLInputElement) {
-          const state = validateNumberInput(fieldSet.annual, { fallback: 0, min: 0, required: true });
+          const state = validateNumberInput(fieldSet.annual, { fallback: 0, min: 0, required: false });
           applyFieldValidationState(fieldSet.annual, state.message);
         }
       });
@@ -2521,17 +2774,17 @@
       const variableCostPerClassState = validateNumberInput(controls.variableCostPerClass, {
         fallback: 0,
         min: 0,
-        required: true
+        required: false
       });
       const variableCostPerStudentState = validateNumberInput(controls.variableCostPerStudent, {
         fallback: 0,
         min: 0,
-        required: true
+        required: false
       });
       const variableCostPerStudentMonthlyState = validateNumberInput(controls.variableCostPerStudentMonthly, {
         fallback: 0,
         min: 0,
-        required: true
+        required: false
       });
       const vatRateState = validateNumberInput(controls.vatRate, {
         fallback: 21,
@@ -2569,11 +2822,7 @@
       const bufferPercent = Math.max(bufferState.value, 0);
       const buffer = bufferPercent / 100;
       const currencySymbol = controls.currencySymbol.value.trim() || '€';
-      const lessonCostState = validateNumberInput(controls.lessonCost, {
-        fallback: null,
-        min: 0,
-        required: false
-      });
+      const lessonCostListState = parseManualLessonPriceList(controls.lessonCost?.value);
       const lessonPriceMinState = validateNumberInput(controls.lessonPriceMin, {
         fallback: null,
         min: 0,
@@ -2584,17 +2833,24 @@
         min: 0,
         required: false
       });
-      applyFieldValidationState(controls.lessonCost, lessonCostState.message);
+      applyFieldValidationState(controls.lessonCost, lessonCostListState.message);
       applyFieldValidationState(controls.lessonPriceMin, lessonPriceMinState.message);
       applyFieldValidationState(controls.lessonPriceMax, lessonPriceMaxState.message);
 
-      let lessonCostInclVat = lessonCostState.valid && !lessonCostState.empty ? lessonCostState.value : null;
+      const lessonCostInclVatOptions = lessonCostListState.valid ? lessonCostListState.values : [];
+      const lessonCostInclVat = lessonCostInclVatOptions.length ? lessonCostInclVatOptions[0] : null;
       let lessonPriceMin = lessonPriceMinState.valid && !lessonPriceMinState.empty ? lessonPriceMinState.value : null;
       let lessonPriceMax = lessonPriceMaxState.valid && !lessonPriceMaxState.empty ? lessonPriceMaxState.value : null;
 
       if (lessonPriceMin != null && lessonPriceMax != null && lessonPriceMin > lessonPriceMax) {
-        applyFieldValidationState(controls.lessonPriceMin, ERROR_MESSAGE_INVALID);
-        applyFieldValidationState(controls.lessonPriceMax, ERROR_MESSAGE_INVALID);
+        const lessonPriceMinMessage = [lessonPriceMinState.message, ERROR_MESSAGE_RANGE_ORDER]
+          .filter(Boolean)
+          .join(' ');
+        const lessonPriceMaxMessage = [lessonPriceMaxState.message, ERROR_MESSAGE_RANGE_ORDER]
+          .filter(Boolean)
+          .join(' ');
+        applyFieldValidationState(controls.lessonPriceMin, lessonPriceMinMessage);
+        applyFieldValidationState(controls.lessonPriceMax, lessonPriceMaxMessage);
         lessonPriceMin = null;
         lessonPriceMax = null;
       }
@@ -2746,13 +3002,6 @@
       if (controls.currencySymbol instanceof HTMLInputElement && controls.currencySymbol.dataset.editing !== 'true') {
         controls.currencySymbol.value = currencySymbol;
       }
-      updateInputValueIfAllowed(
-        controls.lessonCost,
-        lessonCostState,
-        Number.isFinite(lessonCostInclVat) ? formatFixed(lessonCostInclVat, 2) : '',
-        { allowEmpty: true }
-      );
-
       controls.workingWeeksDisplay.textContent = formatFixed(workingWeeks, 2);
       controls.workingDaysDisplay.textContent = formatFixed(workingDaysPerYear, 2);
 
@@ -2772,6 +3021,7 @@
         studentsPerClass,
         hoursPerLesson,
         lessonCostInclVat,
+        lessonCostInclVatOptions,
         lessonPriceMin,
         lessonPriceMax,
         workingWeeks,
@@ -2855,6 +3105,9 @@
         buffer: inputs.buffer,
         bufferPercent: inputs.bufferPercent,
         lessonCostInclVat: inputs.lessonCostInclVat,
+        lessonCostInclVatOptions: Array.isArray(inputs.lessonCostInclVatOptions)
+          ? [...inputs.lessonCostInclVatOptions]
+          : [],
         activeMonths: inputs.activeMonths,
         workingWeeks: inputs.workingWeeks,
         workingDaysPerYear: inputs.workingDaysPerYear,
@@ -2881,10 +3134,19 @@
         return null;
       }
       const variantValue = variant === 'base' ? 'base' : 'buffered';
+      const manualIndex = Number.isFinite(context.manualIndex) && context.manualIndex >= 0
+        ? Math.trunc(context.manualIndex)
+        : null;
+      const selectorBase = `button.price-line[data-row="${rowIndex}"][data-column="${columnIndex}"][data-variant="${variantValue}"]`;
 
-      return tablesContainer.querySelector(
-        `button.price-line[data-row="${rowIndex}"][data-column="${columnIndex}"][data-variant="${variantValue}"]`
-      );
+      if (manualIndex !== null) {
+        return tablesContainer.querySelector(`${selectorBase}[data-manual-index="${manualIndex}"]`)
+          || tablesContainer.querySelector(selectorBase);
+      }
+
+      return tablesContainer.querySelector(`${selectorBase}:not([data-manual-index])`)
+        || tablesContainer.querySelector(`${selectorBase}[data-manual-index="0"]`)
+        || tablesContainer.querySelector(selectorBase);
     }
 
     function formatBreakdownCurrency(value) {
@@ -3064,7 +3326,14 @@
           notes.push('Report reflects the base pricing scenario that meets your net income target.');
         }
       } else {
-        notes.push('Report uses the manual lesson price you entered.');
+        const manualLessonPriceCount = Array.isArray(inputs?.lessonCostInclVatOptions)
+          ? inputs.lessonCostInclVatOptions.filter(value => Number.isFinite(value) && value >= 0).length
+          : 0;
+        notes.push(
+          manualLessonPriceCount > 1
+            ? 'Report uses the first manual lesson price from your comma-separated list.'
+            : 'Report uses the manual lesson price you entered.'
+        );
       }
 
       const notesMarkup = notes.length
@@ -3402,6 +3671,9 @@
       }
 
       const { rowIndex, columnIndex, variant } = context;
+      const requestedManualIndex = Number.isFinite(context.manualIndex) && context.manualIndex >= 0
+        ? Math.trunc(context.manualIndex)
+        : null;
       const row = latestPricingData[rowIndex];
       if (!row || !Array.isArray(row.columns)) {
         return false;
@@ -3412,7 +3684,17 @@
         return false;
       }
 
-      const pricingVariant = variant === 'base' ? column.base : column.buffered;
+      const manualOptions = Array.isArray(column.manualOptions) ? column.manualOptions : [];
+      const selectedManualOption = manualOptions.length
+        ? (requestedManualIndex !== null ? (manualOptions[requestedManualIndex] || manualOptions[0]) : manualOptions[0])
+        : null;
+      const selectedManualIndex = selectedManualOption
+        ? (Number.isFinite(selectedManualOption.index) ? selectedManualOption.index : 0)
+        : null;
+
+      const pricingVariant = selectedManualOption
+        ? (variant === 'base' ? selectedManualOption.base : selectedManualOption.buffered)
+        : (variant === 'base' ? column.base : column.buffered);
       if (!pricingVariant || !pricingVariant.breakdown) {
         return false;
       }
@@ -3438,9 +3720,12 @@
 
       let variantLabel;
       if (isLessonMode) {
+        const manualLabel = selectedManualIndex !== null && manualOptions.length > 1
+          ? ` (price ${selectedManualIndex + 1})`
+          : '';
         variantLabel = variant === 'base'
-          ? 'Full attendance at set lesson price'
-          : `Attendance shortfall (${formatFixed(latestBufferPercent, 1)}% less revenue)`;
+          ? `Full attendance at set lesson price${manualLabel}`
+          : `Attendance shortfall (${formatFixed(latestBufferPercent, 1)}% less revenue)${manualLabel}`;
       } else {
         variantLabel = variant === 'base'
           ? 'Base price (no buffer)'
@@ -3548,7 +3833,10 @@
       const normalizedContext = {
         rowIndex: Number(context?.rowIndex),
         columnIndex: Number(context?.columnIndex),
-        variant: context?.variant === 'base' ? 'base' : 'buffered'
+        variant: context?.variant === 'base' ? 'base' : 'buffered',
+        manualIndex: Number.isFinite(Number(context?.manualIndex)) && Number(context?.manualIndex) >= 0
+          ? Math.trunc(Number(context.manualIndex))
+          : null
       };
 
       if (!populateBreakdownDialog(normalizedContext)) {
@@ -3853,6 +4141,73 @@
         return Number.isFinite(rate) ? formatCurrency(symbol, rate) : '—';
       };
 
+      const variant = useBuffer ? 'buffered' : 'base';
+      const defaultPriceLabel = mode === PRICING_MODE_LESSON
+        ? (useBuffer ? `Shortfall ${formattedBuffer}%` : 'Full attendance')
+        : (useBuffer ? `Buffered +${formattedBuffer}%` : 'Base price');
+
+      const renderPriceButton = ({
+        priceData,
+        rowIndex,
+        columnIndex,
+        priceLabel = defaultPriceLabel,
+        manualIndex = null,
+        compact = false
+      }) => {
+        if (!priceData) {
+          return '';
+        }
+
+        const exVat = formatCurrency(symbol, priceData.priceExVat);
+        const inclVat = formatCurrency(symbol, priceData.priceInclVat);
+        const outOfRange = isPriceOutOfRange(priceData.priceInclVat);
+        const highlightIncome = shouldHighlightIncome(
+          { monthlyNet: priceData.monthlyNet, annualNet: priceData.annualNet },
+          {
+            acceptableIncome: acceptableIncomeRange,
+            displayMode: incomeDisplayMode,
+            taxRate: incomeTaxRate,
+            activeMonths: incomeActiveMonths
+          }
+        );
+        const priceClasses = ['price-line'];
+        if (compact) {
+          priceClasses.push('price-line--mini');
+        }
+        if (outOfRange) {
+          priceClasses.push('price-line--out-of-range');
+        }
+        if (highlightIncome) {
+          priceClasses.push('price-line--acceptable');
+        }
+        const buttonClass = priceClasses.join(' ');
+        const annualIncomeDisplay = formatIncomeForDisplay(priceData.annualNet);
+        const hourlyDisplay = formatHourlyRateDisplay(priceData.breakdown);
+        const valueClass = outOfRange
+          ? 'price-value price-value--out-of-range'
+          : 'price-value';
+        const exVatMarkup = displayExVat ? `<span class="price-secondary">ex VAT ${exVat}</span>` : '';
+        const hourlyMarkup = displayHourly ? `<span class="price-tertiary">${hourlyRateLabel} ${hourlyDisplay}</span>` : '';
+        const annualMarkup = displayAnnual ? `<span class="price-secondary">${annualIncomeLabel} ${annualIncomeDisplay}</span>` : '';
+        const manualIndexAttribute = Number.isInteger(manualIndex) ? ` data-manual-index="${manualIndex}"` : '';
+
+        return `
+          <button
+            type="button"
+            class="${buttonClass}"
+            data-row="${rowIndex}"
+            data-column="${columnIndex}"
+            data-variant="${variant}"${manualIndexAttribute}
+          >
+            <span class="price-label">${priceLabel}</span>
+            <strong class="${valueClass}">${inclVat}</strong>
+            ${exVatMarkup}
+            ${hourlyMarkup}
+            ${annualMarkup}
+          </button>
+        `;
+      };
+
       const toggleMarkup = `<div class="price-display-toggles">
             <label class="display-toggle">
               <input type="checkbox" class="display-toggle-checkbox" data-toggle="exVat" ${showExVat ? 'checked' : ''} />
@@ -3882,52 +4237,40 @@
         .map((row, rowIndex) => {
           const cells = row.columns
             .map((col, columnIndex) => {
+              const hasManualOptions = mode === PRICING_MODE_LESSON &&
+                Array.isArray(col.manualOptions) &&
+                col.manualOptions.length > 1;
+
+              if (hasManualOptions) {
+                const manualOptionButtons = col.manualOptions
+                  .map((manualOption, manualIndex) => {
+                    const priceData = useBuffer ? manualOption.buffered : manualOption.base;
+                    return renderPriceButton({
+                      priceData,
+                      rowIndex,
+                      columnIndex,
+                      priceLabel: `Price ${manualIndex + 1}`,
+                      manualIndex,
+                      compact: true
+                    });
+                  })
+                  .join('');
+
+                return `
+                  <td>
+                    <div class="price-line-group">${manualOptionButtons}</div>
+                  </td>
+                `;
+              }
+
               const priceData = useBuffer ? col.buffered : col.base;
-              const exVat = formatCurrency(symbol, priceData.priceExVat);
-              const inclVat = formatCurrency(symbol, priceData.priceInclVat);
-              const outOfRange = isPriceOutOfRange(priceData.priceInclVat);
-              const highlightIncome = shouldHighlightIncome(
-                { monthlyNet: priceData.monthlyNet, annualNet: priceData.annualNet },
-                {
-                  acceptableIncome: acceptableIncomeRange,
-                  displayMode: incomeDisplayMode,
-                  taxRate: incomeTaxRate,
-                  activeMonths: incomeActiveMonths
-                }
-              );
-              const priceClasses = ['price-line'];
-              if (outOfRange) {
-                priceClasses.push('price-line--out-of-range');
-              }
-              if (highlightIncome) {
-                priceClasses.push('price-line--acceptable');
-              }
-              const buttonClass = priceClasses.join(' ');
-              const annualIncomeDisplay = formatIncomeForDisplay(priceData.annualNet);
-              const hourlyDisplay = formatHourlyRateDisplay(priceData.breakdown);
-              const valueClass = outOfRange
-                ? 'price-value price-value--out-of-range'
-                : 'price-value';
-              const priceLabel = useBuffer ? `Buffered +${formattedBuffer}%` : 'Base price';
-              const variant = useBuffer ? 'buffered' : 'base';
-              const exVatMarkup = displayExVat ? `<span class="price-secondary">ex VAT ${exVat}</span>` : '';
-              const hourlyMarkup = displayHourly ? `<span class="price-tertiary">${hourlyRateLabel} ${hourlyDisplay}</span>` : '';
-              const annualMarkup = displayAnnual ? `<span class="price-secondary">${annualIncomeLabel} ${annualIncomeDisplay}</span>` : '';
               return `
                 <td>
-                  <button
-                    type="button"
-                    class="${buttonClass}"
-                    data-row="${rowIndex}"
-                    data-column="${columnIndex}"
-                    data-variant="${variant}"
-                  >
-                    <span class="price-label">${priceLabel}</span>
-                    <strong class="${valueClass}">${inclVat}</strong>
-                    ${exVatMarkup}
-                    ${hourlyMarkup}
-                    ${annualMarkup}
-                  </button>
+                  ${renderPriceButton({
+                    priceData,
+                    rowIndex,
+                    columnIndex
+                  })}
                 </td>
               `;
             })
@@ -4054,12 +4397,19 @@
         buffer,
         bufferPercent,
         lessonCostInclVat,
+        lessonCostInclVatOptions,
         activeMonths
       } = inputs;
 
       latestResults = [];
 
-      const manualMode = Number.isFinite(lessonCostInclVat);
+      const normalizedManualLessonPrices = Array.isArray(lessonCostInclVatOptions)
+        ? lessonCostInclVatOptions.filter(value => Number.isFinite(value) && value >= 0)
+        : [];
+      if (!normalizedManualLessonPrices.length && Number.isFinite(lessonCostInclVat) && lessonCostInclVat >= 0) {
+        normalizedManualLessonPrices.push(lessonCostInclVat);
+      }
+      const manualMode = normalizedManualLessonPrices.length > 0;
       const mode = manualMode ? PRICING_MODE_LESSON : PRICING_MODE_TARGET;
 
       const pricingData = [];
@@ -4137,8 +4487,6 @@
 
       if (mode === PRICING_MODE_LESSON) {
         const vatDivisor = Math.max(1 + vatRate, 0.0001);
-        const priceInclVatPerStudent = lessonCostInclVat;
-        const priceExVatPerStudent = lessonCostInclVat / vatDivisor;
         const attendanceMultiplier = Math.max(1 - buffer, 0);
         const formattedBuffer = formatFixed(bufferPercent, 1);
 
@@ -4147,90 +4495,103 @@
 
           for (const column of columnsMeta) {
             const classesPerYear = column.classesPerYear;
-            const annualRevenue = priceExVatPerStudent * students * classesPerYear;
-            const bufferedRevenue = annualRevenue * attendanceMultiplier;
             const annualVariableCosts =
               variableCostPerClass * classesPerYear +
               variableCostPerStudent * students * classesPerYear +
               variableCostPerStudentMonthly * students * normalizedActiveMonths;
+            const manualOptions = normalizedManualLessonPrices.map((priceInclVatPerStudent, index) => {
+              const priceExVatPerStudent = priceInclVatPerStudent / vatDivisor;
+              const annualRevenue = priceExVatPerStudent * students * classesPerYear;
+              const bufferedRevenue = annualRevenue * attendanceMultiplier;
 
-            const annualNet = computeNetIncomeFromRevenue(
-              annualRevenue,
-              fixedCosts,
-              effectiveTaxRate,
-              annualVariableCosts
-            );
-            const bufferedAnnualNet = computeNetIncomeFromRevenue(
-              bufferedRevenue,
-              fixedCosts,
-              effectiveTaxRate,
-              annualVariableCosts
-            );
+              const annualNet = computeNetIncomeFromRevenue(
+                annualRevenue,
+                fixedCosts,
+                effectiveTaxRate,
+                annualVariableCosts
+              );
+              const bufferedAnnualNet = computeNetIncomeFromRevenue(
+                bufferedRevenue,
+                fixedCosts,
+                effectiveTaxRate,
+                annualVariableCosts
+              );
 
-            const monthlyNet = Number.isFinite(annualNet) && hasActiveMonths
-              ? annualNet / activeMonths
-              : null;
-            const bufferedMonthlyNet = Number.isFinite(bufferedAnnualNet) && hasActiveMonths
-              ? bufferedAnnualNet / activeMonths
-              : null;
+              const monthlyNet = Number.isFinite(annualNet) && hasActiveMonths
+                ? annualNet / activeMonths
+                : null;
+              const bufferedMonthlyNet = Number.isFinite(bufferedAnnualNet) && hasActiveMonths
+                ? bufferedAnnualNet / activeMonths
+                : null;
 
-            if (!manualNetSummary && Number.isFinite(annualNet)) {
-              manualNetSummary = {
-                annual: annualNet,
-                monthly: Number.isFinite(monthlyNet) ? monthlyNet : null,
-                weekly: hasWorkingWeeks ? annualNet / workingWeeks : null,
-                averageWeekly: annualNet / WEEKS_PER_YEAR,
-                averageMonthly: annualNet / MONTHS_PER_YEAR
-              };
-            }
+              if (!manualNetSummary && Number.isFinite(annualNet)) {
+                manualNetSummary = {
+                  annual: annualNet,
+                  monthly: Number.isFinite(monthlyNet) ? monthlyNet : null,
+                  weekly: hasWorkingWeeks ? annualNet / workingWeeks : null,
+                  averageWeekly: annualNet / WEEKS_PER_YEAR,
+                  averageMonthly: annualNet / MONTHS_PER_YEAR
+                };
+              }
 
-            const baseBreakdown = buildPriceBreakdown({
-              priceExVatValue: priceExVatPerStudent,
-              priceInclVatValue: priceInclVatPerStudent,
-              studentCount: students,
-              classesPerYearValue: classesPerYear
-            });
+              const baseBreakdown = buildPriceBreakdown({
+                priceExVatValue: priceExVatPerStudent,
+                priceInclVatValue: priceInclVatPerStudent,
+                studentCount: students,
+                classesPerYearValue: classesPerYear
+              });
 
-            row.columns.push({
-              classesPerWeek: column.classesPerWeek,
-              classesPerYear,
-              manualNet: {
-                monthly: monthlyNet,
-                annual: annualNet,
-                bufferedMonthly: bufferedMonthlyNet,
-                bufferedAnnual: bufferedAnnualNet
-              },
-              base: {
+              const base = {
                 priceExVat: priceExVatPerStudent,
                 priceInclVat: priceInclVatPerStudent,
                 breakdown: baseBreakdown,
                 annualNet,
                 monthlyNet
-              },
-              buffered: {
+              };
+              const buffered = {
                 priceExVat: priceExVatPerStudent,
                 priceInclVat: priceInclVatPerStudent,
                 breakdown: baseBreakdown,
                 annualNet: bufferedAnnualNet,
                 monthlyNet: bufferedMonthlyNet
-              }
+              };
+
+              latestResults.push({
+                variant: `Price ${formatFixed(priceInclVatPerStudent, 2)} full attendance`,
+                students,
+                classesPerWeek: column.classesPerWeek,
+                classesPerYear: Math.round(classesPerYear),
+                priceInclVat: Math.round(priceInclVatPerStudent),
+                monthlyNet,
+                annualNet
+              });
+              latestResults.push({
+                variant: `Price ${formatFixed(priceInclVatPerStudent, 2)} with ${formattedBuffer}% shortfall`,
+                students,
+                classesPerWeek: column.classesPerWeek,
+                classesPerYear: Math.round(classesPerYear),
+                priceInclVat: Math.round(priceInclVatPerStudent),
+                monthlyNet: bufferedMonthlyNet,
+                annualNet: bufferedAnnualNet
+              });
+
+              return {
+                index,
+                priceExVat: priceExVatPerStudent,
+                priceInclVat: priceInclVatPerStudent,
+                base,
+                buffered
+              };
             });
 
-            latestResults.push({
-              variant: 'Full attendance',
-              students,
+            const firstManualOption = manualOptions[0] || null;
+
+            row.columns.push({
               classesPerWeek: column.classesPerWeek,
-              classesPerYear: Math.round(classesPerYear),
-              monthlyNet,
-              annualNet
-            });
-            latestResults.push({
-              variant: `With ${formattedBuffer}% shortfall`,
-              students,
-              classesPerWeek: column.classesPerWeek,
-              classesPerYear: Math.round(classesPerYear),
-              monthlyNet: bufferedMonthlyNet,
-              annualNet: bufferedAnnualNet
+              classesPerYear,
+              manualOptions,
+              base: firstManualOption ? firstManualOption.base : null,
+              buffered: firstManualOption ? firstManualOption.buffered : null
             });
           }
 
@@ -4349,53 +4710,31 @@
       const { pricingData, bufferPercent, revenueNeeded, mode, manualNetSummary } = computeTables(inputs);
 
       if (mode === PRICING_MODE_LESSON && manualNetSummary) {
-        if (Number.isFinite(manualNetSummary.annual)) {
-          writeDesiredIncomeNet('year', Math.max(manualNetSummary.annual, 0));
-          inputs.targetNet = manualNetSummary.annual;
-        }
+        const normalizeManualNet = value => (Number.isFinite(value) ? Math.max(value, 0) : null);
+        const normalizedManualNetSummary = {
+          year: normalizeManualNet(manualNetSummary.annual),
+          week: normalizeManualNet(manualNetSummary.weekly),
+          month: normalizeManualNet(manualNetSummary.monthly),
+          avgWeek: normalizeManualNet(manualNetSummary.averageWeekly),
+          avgMonth: normalizeManualNet(manualNetSummary.averageMonthly)
+        };
 
-        if (Number.isFinite(manualNetSummary.weekly)) {
-          writeDesiredIncomeNet('week', Math.max(manualNetSummary.weekly, 0));
-          inputs.targetNetPerWeek = manualNetSummary.weekly;
-        } else {
-          writeDesiredIncomeNet('week', null);
-          inputs.targetNetPerWeek = null;
-        }
+        writeDesiredIncomeNet('year', normalizedManualNetSummary.year);
+        inputs.targetNet = normalizedManualNetSummary.year;
 
-        if (Number.isFinite(manualNetSummary.monthly)) {
-          writeDesiredIncomeNet('month', Math.max(manualNetSummary.monthly, 0));
-          inputs.targetNetPerMonth = manualNetSummary.monthly;
-        } else {
-          writeDesiredIncomeNet('month', null);
-          inputs.targetNetPerMonth = null;
-        }
+        writeDesiredIncomeNet('week', normalizedManualNetSummary.week);
+        inputs.targetNetPerWeek = normalizedManualNetSummary.week;
 
-        if (Number.isFinite(manualNetSummary.averageWeekly)) {
-          writeDesiredIncomeNet('avgWeek', Math.max(manualNetSummary.averageWeekly, 0));
-          inputs.targetNetAveragePerWeek = manualNetSummary.averageWeekly;
-        } else {
-          writeDesiredIncomeNet('avgWeek', null);
-          inputs.targetNetAveragePerWeek = null;
-        }
+        writeDesiredIncomeNet('month', normalizedManualNetSummary.month);
+        inputs.targetNetPerMonth = normalizedManualNetSummary.month;
 
-        if (Number.isFinite(manualNetSummary.averageMonthly)) {
-          writeDesiredIncomeNet('avgMonth', Math.max(manualNetSummary.averageMonthly, 0));
-          inputs.targetNetAveragePerMonth = manualNetSummary.averageMonthly;
-        } else {
-          writeDesiredIncomeNet('avgMonth', null);
-          inputs.targetNetAveragePerMonth = null;
-        }
+        writeDesiredIncomeNet('avgWeek', normalizedManualNetSummary.avgWeek);
+        inputs.targetNetAveragePerWeek = normalizedManualNetSummary.avgWeek;
 
-        refreshDesiredIncomeDisplay(
-          {
-            year: manualNetSummary.annual,
-            week: manualNetSummary.weekly,
-            month: manualNetSummary.monthly,
-            avgWeek: manualNetSummary.averageWeekly,
-            avgMonth: manualNetSummary.averageMonthly
-          },
-          inputs.taxRate
-        );
+        writeDesiredIncomeNet('avgMonth', normalizedManualNetSummary.avgMonth);
+        inputs.targetNetAveragePerMonth = normalizedManualNetSummary.avgMonth;
+
+        refreshDesiredIncomeDisplay(normalizedManualNetSummary, inputs.taxRate, { force: true });
         refreshAcceptableIncomeDisplay(inputs.taxRate, { force: true });
       }
 
@@ -4516,6 +4855,7 @@
         activeMonthShare,
         weeksShare,
         lessonCostInclVat,
+        lessonCostInclVatOptions,
         lessonPriceMin,
         lessonPriceMax
       } = inputs;
@@ -4537,8 +4877,18 @@
         ? formatCurrency(currencySymbol, targetNetAveragePerMonth)
         : '—';
 
-      const manualLessonLine = Number.isFinite(lessonCostInclVat)
-        ? `Preferred lesson price (incl. VAT): ${currencySymbol}${formatFixed(lessonCostInclVat, 2)}`
+      const manualLessonPrices = Array.isArray(lessonCostInclVatOptions)
+        ? lessonCostInclVatOptions.filter(value => Number.isFinite(value) && value >= 0)
+        : [];
+      if (!manualLessonPrices.length && Number.isFinite(lessonCostInclVat) && lessonCostInclVat >= 0) {
+        manualLessonPrices.push(lessonCostInclVat);
+      }
+      const manualLessonLine = manualLessonPrices.length
+        ? `Preferred lesson price${manualLessonPrices.length > 1 ? 's' : ''} (incl. VAT): ${
+            manualLessonPrices
+              .map(value => `${currencySymbol}${formatFixed(value, 2)}`)
+              .join(', ')
+          }`
         : 'Preferred lesson price (incl. VAT): not set';
       const lessonMinLine = Number.isFinite(lessonPriceMin)
         ? `Minimum preferred lesson price (incl. VAT): ${currencySymbol}${formatFixed(lessonPriceMin, 2)}`
@@ -4592,12 +4942,14 @@
       let rows;
 
       if (latestResultsMode === PRICING_MODE_LESSON) {
-        header = 'Variant,Students,Classes per week,Classes per year,Monthly net income,Annual net income';
+        header = 'Variant,Price incl VAT,Students,Classes per week,Classes per year,Monthly net income,Annual net income';
         rows = latestResults.map(entry => {
           const monthly = Number.isFinite(entry.monthlyNet) ? Math.round(entry.monthlyNet) : '';
           const annual = Number.isFinite(entry.annualNet) ? Math.round(entry.annualNet) : '';
+          const priceInclVat = Number.isFinite(entry.priceInclVat) ? entry.priceInclVat : '';
           return [
             entry.variant,
+            priceInclVat,
             entry.students,
             entry.classesPerWeek,
             entry.classesPerYear,
@@ -4629,7 +4981,7 @@
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
       controls.statusMessage.textContent = latestResultsMode === PRICING_MODE_LESSON
-        ? 'CSV download started. File lists monthly and annual net income for each combination.'
+        ? 'CSV download started. File lists monthly and annual net income for each manual price option.'
         : 'CSV download started. File lists base and buffered prices including and excluding VAT.';
       setTimeout(() => {
         controls.statusMessage.textContent = '';
@@ -4675,12 +5027,6 @@
       const updateMin = () => {
         updateAcceptableIncomeFromInput('min');
       };
-      controls.acceptableIncomeMin.addEventListener('focus', () => {
-        controls.acceptableIncomeMin.dataset.editing = 'true';
-      });
-      controls.acceptableIncomeMin.addEventListener('blur', () => {
-        delete controls.acceptableIncomeMin.dataset.editing;
-      });
       controls.acceptableIncomeMin.addEventListener('input', updateMin);
       controls.acceptableIncomeMin.addEventListener('change', () => {
         updateMin();
@@ -4695,12 +5041,6 @@
       const updateMax = () => {
         updateAcceptableIncomeFromInput('max');
       };
-      controls.acceptableIncomeMax.addEventListener('focus', () => {
-        controls.acceptableIncomeMax.dataset.editing = 'true';
-      });
-      controls.acceptableIncomeMax.addEventListener('blur', () => {
-        delete controls.acceptableIncomeMax.dataset.editing;
-      });
       controls.acceptableIncomeMax.addEventListener('input', updateMax);
       controls.acceptableIncomeMax.addEventListener('change', () => {
         updateMax();
@@ -4847,10 +5187,13 @@
         : null;
 
       if (priceButton) {
+        const manualIndexRaw = priceButton.dataset.manualIndex;
+        const manualIndex = manualIndexRaw !== undefined ? Number(manualIndexRaw) : null;
         const context = {
           rowIndex: Number(priceButton.dataset.row),
           columnIndex: Number(priceButton.dataset.column),
-          variant: priceButton.dataset.variant === 'base' ? 'base' : 'buffered'
+          variant: priceButton.dataset.variant === 'base' ? 'base' : 'buffered',
+          manualIndex: Number.isFinite(manualIndex) && manualIndex >= 0 ? Math.trunc(manualIndex) : null
         };
         openBreakdownDialog(context, priceButton);
         return;

@@ -22,6 +22,8 @@ The project is gradually being modularized. Currently:
 ## Progressive Web App support
 The calculator now exposes a web app manifest and service worker so it can be installed on supported devices and keep working offline. Static assets and core pages are precached, and subsequent navigation attempts fall back to the cached calculator when the network is unavailable.
 
+The service worker cache key is versioned (`course-pricing-calculator-v*`) so new deployments can invalidate stale cached assets. Local persisted calculator inputs are also versioned and migrated forward automatically so existing saved field values are retained after storage upgrades.
+
 ## Data portability
 Use the **Export JSON** and **Import JSON** buttons in the Settings panel to move your saved setup between browsers. Exports include every input value, display toggle, and layout preference plus the active theme. The JSON schema is versioned in [`DATA_FORMAT.md`](./DATA_FORMAT.md) so future updates remain compatible with earlier downloads.
 
@@ -57,3 +59,15 @@ Use these steps to confirm acceptable-income persistence treats blank maximums a
 1. Load the calculator and enable the **Remember my inputs** option.
 2. Set an acceptable minimum income value, leave the maximum field blank, and toggle any basis if desired.
 3. Reload the page. The acceptable income inputs should show the saved minimum and an empty maximum, and the acceptable range shading should extend through the full graph to represent no upper bound.
+
+Use these steps to confirm comma-separated manual lesson-price preferences render correctly.
+
+1. In **Lesson price preferences**, enter up to four values in **Set a specific lesson price (incl. VAT)**, for example `95, 105, 115`.
+2. Confirm each pricing-table cell now shows one mini price box per entered value.
+3. Toggle **Include buffer** and confirm each mini box updates its income figures while retaining the same per-student price.
+
+Use these steps to confirm Desired Net Income values do not go negative in manual lesson-price mode.
+
+1. Enter a very low manual lesson price (for example `1`) so projected profitability is poor.
+2. Confirm the Desired Net Income fields do not display negative values.
+3. Change a different desired-income basis field and confirm all related desired-income fields continue syncing.

@@ -2,6 +2,7 @@
 
 ## High Priority (Fixes)
 - [ ] Fix Desired Gross/Net Income fields becoming hard to overwrite in normal browser sessions (non-private), including the red-on-delete behavior.
+- [ ] Add service-worker update toast (offline-safe) so users can reload into the latest version without DevTools.
 - [ ] Fix that green table cell backgrounds don't display when not in fixed lesson price mode any more.
 - [ ] Stop resetting acceptable income range max to 0 when it's left empty, because empty is valid as it means no upper limit.
 - [ ] When setting min max lesson price the auto-correct for the amounts is too aggressive: if one removes a value it immediately populates another higher value (perhaps assuming removal is 0 which it doesn't permit as it invalidates calculations) - relax the auto calculate here, at least wait until the user has entered a new value and left the edit box. OR use a single field that allows a range entry like: 95-105 (this might be better).

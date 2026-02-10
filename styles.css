@@ -1626,6 +1626,16 @@
       background: var(--secondary-button-hover-bg);
     }
 
+    button.secondary.danger {
+      color: #c0392b;
+      border-color: #c0392b;
+    }
+
+    button.secondary.danger:hover {
+      background: #c0392b;
+      color: #fff;
+    }
+
     .theme-toggle {
       display: inline-flex;
       align-items: center;

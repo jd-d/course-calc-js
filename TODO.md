@@ -1,11 +1,7 @@
 # TODO
 
 ## High Priority (Fixes)
-- [ ] Fix Desired Gross/Net Income fields becoming hard to overwrite in normal browser sessions (non-private), including the red-on-delete behavior.
-- [ ] Add service-worker update toast (offline-safe) so users can reload into the latest version without DevTools.
 - [ ] Fix that green table cell backgrounds don't display when not in fixed lesson price mode any more.
-- [ ] Stop resetting acceptable income range max to 0 when it's left empty, because empty is valid as it means no upper limit.
-- [ ] When setting min max lesson price the auto-correct for the amounts is too aggressive: if one removes a value it immediately populates another higher value (perhaps assuming removal is 0 which it doesn't permit as it invalidates calculations) - relax the auto calculate here, at least wait until the user has entered a new value and left the edit box. OR use a single field that allows a range entry like: 95-105 (this might be better).
 
 ## High Priority (UI/UX)
 - [ ] Revise the time-off and day-off logic, including related styling adjustments.
@@ -25,6 +21,12 @@
 - [ ] Auto-select light or dark mode by time of day but add a lock icon next to it the user can press to keep it on either. They can still manually switch the switch (they don't need to actually press the lock first) but it won't auto change if the lock is locked.
 
 ## DONE
+- [x] Fix Desired Gross/Net Income fields becoming hard to overwrite in normal browser sessions — `change` handler no longer re-sets `dataset.editing` after blur (issue #6). (2026-02-10)
+- [x] Stop resetting acceptable income range max to 0 when left empty — `normalizePersistedInputValues` now preserves `null` instead of converting via `Number(null)=0`. (2026-02-10)
+- [x] Relax auto-correct for min/max lesson price — deferred render to `change` (blur) instead of every keystroke, with editing guards to prevent value rewriting mid-edit. (2026-02-10)
+- [x] Add service-worker update toast (offline-safe) so users can reload into the latest version without DevTools. (2026-02-10)
+- [x] Add "Clear all app data" button that clears localStorage, unregisters the service worker, purges caches, and reloads. (2026-02-10)
+- [x] Add runtime version diagnostics — app.js logs build version and SW controller status on load. (2026-02-10)
 - [x] Make the left Inputs sidebar collapsible to a minimal right-pointing handle (`>`), with one-click re-expand. (2026-02-10)
 - [x] Bump cache/storage versioning to unstick stale browser data while migrating existing saved key field values. (2026-02-08)
 - [x] Investigate and fix conditions where Desired Net Income fields become negative and then stop syncing when another income basis field is edited. (2026-02-08)

@@ -1,7 +1,7 @@
 (function () {
   const DARK_THEME_COLOR = '#0a0c12';
   const LIGHT_THEME_COLOR = '#eff4ff';
-  const SERVICE_WORKER_VERSION = '2026-02-10-v1';
+  const SERVICE_WORKER_VERSION = '2026-02-10-v2';
   const themeColorMeta = document.querySelector('meta[name="theme-color"]');
   const SW_UPDATE_TOAST_SESSION_KEY = 'course-pricing-sw-update-toast-dismissed';
 

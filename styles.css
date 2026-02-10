@@ -970,6 +970,7 @@
 
     .layout {
       display: flex;
+      align-items: flex-start;
       gap: 24px;
       flex: 1;
       min-height: 0;
@@ -1067,6 +1068,47 @@
       display: flex;
       flex-direction: column;
       gap: 20px;
+    }
+
+    .controls-panel-toggle {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      align-self: flex-start;
+      width: 1.9rem;
+      min-height: 4.2rem;
+      margin-top: 8px;
+      padding: 0;
+      border-radius: 999px;
+      border: 1px solid var(--secondary-button-border);
+      background: var(--secondary-button-bg);
+      color: var(--text-primary);
+      cursor: pointer;
+      box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18);
+      transition: background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .controls-panel-toggle .toggle-icon {
+      width: 0.8rem;
+      height: 0.8rem;
+      transform: rotate(90deg);
+      transition: transform 0.2s ease;
+    }
+
+    .controls-panel-toggle:hover,
+    .controls-panel-toggle:focus-visible {
+      background: var(--secondary-button-hover-bg);
+      border-color: var(--secondary-button-border);
+      box-shadow: 0 0 0 3px var(--focus-ring);
+      outline: none;
+    }
+
+    .layout.controls-collapsed .controls {
+      display: none;
+    }
+
+    .layout.controls-collapsed .controls-panel-toggle .toggle-icon {
+      transform: rotate(-90deg);
     }
 
     .controls .control-sections,
@@ -2089,6 +2131,14 @@
     @media (max-width: 960px) {
       .layout {
         flex-direction: column;
+      }
+
+      .controls-panel-toggle {
+        display: none;
+      }
+
+      .layout.controls-collapsed .controls {
+        display: flex;
       }
 
       .controls {

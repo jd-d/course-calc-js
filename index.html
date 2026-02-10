@@ -56,8 +56,8 @@
       </div>
     </header>
 
-    <div class="layout">
-      <section class="card controls" aria-labelledby="inputs-heading">
+    <div class="layout" id="main-layout">
+      <section class="card controls" id="inputs-panel" aria-labelledby="inputs-heading">
         <h2 id="inputs-heading" style="font-size: 1.1rem;">Inputs</h2>
         <fieldset class="control-sections">
           <legend class="visually-hidden">Calculator inputs</legend>
@@ -866,6 +866,18 @@
         </div>
         <p class="status-message" id="status-message" aria-live="polite"></p>
       </section>
+
+      <button
+        type="button"
+        id="controls-panel-toggle"
+        class="controls-panel-toggle"
+        aria-controls="inputs-panel"
+        aria-expanded="true"
+        aria-label="Collapse inputs panel"
+        title="Collapse inputs panel"
+      >
+        <svg class="toggle-icon"><use href="#icon-chevron-down"></use></svg>
+      </button>
 
       <section class="tables" aria-live="polite">
         <div class="table-grid" id="tables-container">

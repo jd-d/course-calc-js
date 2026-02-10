@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'v8';
+const CACHE_VERSION = 'v9';
 const CACHE_NAME = `course-pricing-calculator-${CACHE_VERSION}`;
 const PRECACHE_URLS = [
   './',
@@ -32,10 +32,18 @@ self.addEventListener('activate', event => {
   self.clients.claim();
 });
 
+function createBypassCacheRequest(request) {
+  try {
+    return new Request(request, { cache: 'no-cache' });
+  } catch (error) {
+    return request;
+  }
+}
+
 async function fetchAndCache(request) {
   const cache = await caches.open(CACHE_NAME);
   try {
-    const response = await fetch(request);
+    const response = await fetch(createBypassCacheRequest(request));
     if (response && response.status === 200 && response.type === 'basic') {
       cache.put(request, response.clone());
     }

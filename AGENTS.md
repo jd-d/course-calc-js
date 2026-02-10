@@ -3,9 +3,33 @@
 - When checking off an item in `TODO.md`, move the completed task to a `DONE` section and note the completion date.
 - Always update `TODO.md` when adding, completing, or removing tasks so it reflects the current plan.
 
-## Browser Verification Workflow (PR Preview)
+## Local Vs Cloud
 
-This repo uses GitHub Pages PR previews (see `.github/workflows/pages.yml`). When a change needs real browser verification (service worker behavior, caching, layout, input interactions), prefer validating via the PR preview URL instead of relying on local `file://` or localhost.
+- Local/interactive (IDE): ask the user for PR strategy up-front per scope, and offer faster local verification options where available.
+- Cloud/non-interactive (Codex cloud / ChatGPT app): defer to the platform's own operating constraints and defaults. Do not introduce extra decision gates that could block completion.
+
+## Browser Verification Workflow
+
+When a change needs real browser verification (service worker behavior, caching, layout, input interactions), prefer one of the following:
+
+### Option A (Preferred): PR Preview (HTTPS)
+
+This repo uses GitHub Pages PR previews (see `.github/workflows/pages.yml`). The preview URL is deterministic:
+`https://{owner}.github.io/{repo}/previews/pr-{N}/`
+
+Important:
+- Use PR previews only for trusted branches in the same repo. Do not rely on previews for fork PRs unless workflows are explicitly hardened for forks (this workflow uses `pull_request_target`).
+
+### Option B (Fallback/Fast Path): Temporary Local Server (HTTP)
+
+If running locally and port binding is allowed, serve the repo over HTTP:
+- Run (from repo root): `python3 -m http.server 4173 --bind 127.0.0.1`
+- Open: `http://127.0.0.1:4173/` (or `http://localhost:4173/`)
+- Stop: Ctrl+C
+
+Notes:
+- `file://` cannot validate service worker behavior. Use `http://` or `https://`.
+- If port binding is blocked/sandboxed, use the PR preview option instead.
 
 ### When To Create Or Reuse A PR
 
@@ -14,10 +38,14 @@ This repo uses GitHub Pages PR previews (see `.github/workflows/pages.yml`). Whe
 - If the work is a **new scope**, create a **new branch + PR** (non-draft) so the preview deploy runs.
 - Avoid "one PR per tiny tweak": batch follow-up tweaks into the same PR while staying within the scope.
 
-### Cap Open PRs
+### PR Strategy Prompt (Local/Interactive)
 
-To limit merge conflicts and review overhead, keep at most **2 active open PRs** (excluding automation like Dependabot) at a time:
-- If a 3rd scope appears, either merge one PR first, or explicitly decide to fold the new work into an existing PR.
+At the start of each new scope, the agent should:
+- List open PRs (use `gh pr list` if available), report the count, and summarize relevant PRs.
+- Recommend one of: add to an existing PR, create a new PR, or work directly (no PR), and explain why.
+- Ask the user to choose.
+
+The agent should also suggest merging PRs that appear ready to keep the number of open PRs manageable.
 
 ### Preview-Based Test Loop
 

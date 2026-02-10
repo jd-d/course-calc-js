@@ -2206,3 +2206,70 @@
         white-space: normal;
       }
     }
+
+    .sw-update-toast {
+      position: fixed;
+      right: 16px;
+      bottom: 16px;
+      z-index: 1200;
+      width: min(360px, calc(100vw - 32px));
+      padding: 14px 14px 12px;
+      border-radius: 16px;
+      border: 1px solid var(--card-border);
+      background: var(--card-bg);
+      background-image: var(--card-surface-gradient);
+      box-shadow: 0 18px 44px rgba(0, 0, 0, 0.35);
+      backdrop-filter: blur(14px);
+      color: var(--text-primary);
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .sw-update-toast__message {
+      font-size: 0.95rem;
+      line-height: 1.35;
+      color: var(--text-primary);
+    }
+
+    .sw-update-toast__actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+    }
+
+    .sw-update-toast__actions button {
+      padding: 10px 14px;
+      border-radius: 999px;
+      font-weight: 600;
+      font-size: 0.9rem;
+      min-height: 40px;
+    }
+
+    .sw-update-toast__dismiss {
+      background: transparent;
+      border: 1px solid var(--secondary-button-border);
+      color: var(--text-primary);
+      box-shadow: none;
+    }
+
+    .sw-update-toast__dismiss:hover,
+    .sw-update-toast__dismiss:focus-visible {
+      background: var(--secondary-button-bg);
+      border-color: var(--secondary-button-border);
+      outline: none;
+      box-shadow: 0 0 0 3px var(--focus-ring);
+    }
+
+    .sw-update-toast__reload {
+      background: var(--button-bg);
+      color: var(--button-color);
+      border: none;
+    }
+
+    .sw-update-toast__reload:hover,
+    .sw-update-toast__reload:focus-visible {
+      outline: none;
+      box-shadow: 0 0 0 3px var(--focus-ring);
+      filter: brightness(1.02);
+    }

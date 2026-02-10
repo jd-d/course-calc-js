@@ -80,6 +80,11 @@
       avgWeek: controls.targetNetAverageWeek,
       avgMonth: controls.targetNetAverageMonth
     };
+    const mainLayout = document.getElementById('main-layout');
+    const controlsPanelToggle = document.getElementById('controls-panel-toggle');
+    const narrowLayoutQuery = typeof window.matchMedia === 'function'
+      ? window.matchMedia('(max-width: 960px)')
+      : null;
 
     const COLLAPSIBLE_SECTION_SELECTOR = '.control-section[data-collapsible]';
 
@@ -895,6 +900,7 @@
     let showHourlyRate = true;
     let showAnnualIncome = true;
     let targetNetBasis = 'year';
+    let controlsPanelCollapsed = false;
     let desiredIncomeDisplayMode = 'net';
     let desiredIncomeLockedAsGross = false;
     let desiredIncomeLockedGrossValues = null;
@@ -918,6 +924,7 @@
     const PERSISTED_ACCEPTABLE_INCOME_MAX_KEY = '__acceptableIncomeMaxAnnualNet';
     const PERSISTED_ACCEPTABLE_INCOME_BASIS_KEY = '__acceptableIncomeBasis';
     const PERSISTED_COLLAPSED_SECTIONS_KEY = '__collapsedSectionsState';
+    const PERSISTED_CONTROLS_PANEL_COLLAPSED_KEY = '__controlsPanelCollapsed';
     const TARGET_NET_BASIS_VALUES = ['year', 'week', 'month', 'avgWeek', 'avgMonth'];
     const TARGET_NET_BASIS_BY_INPUT_ID = {
       'target-net': 'year',
@@ -926,6 +933,10 @@
       'target-net-average-week': 'avgWeek',
       'target-net-average-month': 'avgMonth'
     };
+
+    function isInputEditing(input) {
+      return input instanceof HTMLInputElement && input.dataset.editing === 'true';
+    }
 
     function getDesiredIncomeField(key) {
       const field = desiredIncomeFieldMap[key];
@@ -1246,6 +1257,32 @@
       });
     }
 
+    function applyControlsPanelCollapsedState({ save = false } = {}) {
+      const isNarrowLayout = narrowLayoutQuery ? narrowLayoutQuery.matches : false;
+      const shouldCollapse = controlsPanelCollapsed && !isNarrowLayout;
+
+      if (mainLayout instanceof HTMLElement) {
+        mainLayout.classList.toggle('controls-collapsed', shouldCollapse);
+      }
+
+      if (controlsPanelToggle instanceof HTMLButtonElement) {
+        controlsPanelToggle.setAttribute('aria-expanded', String(!shouldCollapse));
+        const action = shouldCollapse ? 'Expand' : 'Collapse';
+        const label = `${action} inputs panel`;
+        controlsPanelToggle.setAttribute('aria-label', label);
+        controlsPanelToggle.setAttribute('title', label);
+      }
+
+      if (save && persistenceEnabled) {
+        savePersistedInputs();
+      }
+    }
+
+    function setControlsPanelCollapsed(collapsed, options = {}) {
+      controlsPanelCollapsed = Boolean(collapsed);
+      applyControlsPanelCollapsedState(options);
+    }
+
     function refreshDesiredIncomeDisplay(derivedNetValues, taxRate, options = {}) {
       const forceUpdate = options.force === true;
       updateDesiredIncomeTitle();
@@ -1550,6 +1587,12 @@
       const normalized = { ...values };
       normalized[PERSISTENCE_SCHEMA_META_KEY] = PERSISTENCE_SCHEMA_VERSION;
 
+      if (Object.prototype.hasOwnProperty.call(normalized, PERSISTED_CONTROLS_PANEL_COLLAPSED_KEY)) {
+        normalized[PERSISTED_CONTROLS_PANEL_COLLAPSED_KEY] = Boolean(
+          normalized[PERSISTED_CONTROLS_PANEL_COLLAPSED_KEY]
+        );
+      }
+
       if (Object.prototype.hasOwnProperty.call(normalized, 'lesson-cost')) {
         normalized['lesson-cost'] = normalizeLessonCostPersistedValue(normalized['lesson-cost']);
       }
@@ -1651,6 +1694,7 @@
         ? acceptableIncomeMaxAnnualNet
         : null;
       values[PERSISTED_ACCEPTABLE_INCOME_BASIS_KEY] = acceptableIncomeBasis;
+      values[PERSISTED_CONTROLS_PANEL_COLLAPSED_KEY] = controlsPanelCollapsed;
       values[PERSISTED_COLLAPSED_SECTIONS_KEY] = captureCollapsibleSectionStates();
       Object.keys(desiredIncomeFieldMap).forEach(key => {
         const netValue = readDesiredIncomeNet(key, null);
@@ -1940,6 +1984,8 @@
       if (storedCollapsedStates && typeof storedCollapsedStates === 'object') {
         applyCollapsibleSectionStates(storedCollapsedStates, { skipPersistence: true });
       }
+      controlsPanelCollapsed = Boolean(values[PERSISTED_CONTROLS_PANEL_COLLAPSED_KEY]);
+      applyControlsPanelCollapsedState({ save: false });
       updateDesiredIncomeTitle();
       updateDesiredIncomeLabels();
       updateAcceptableIncomeBasisLabel();
@@ -2695,7 +2741,13 @@
 
     function getInputs() {
       Object.entries(desiredIncomeFieldMap).forEach(([key, field]) => {
-        const required = targetNetBasis === key;
+        const isActiveBasis = targetNetBasis === key;
+        if (isActiveBasis && isInputEditing(field)) {
+          // Keep active desired-income fields editable while typing; validate on commit.
+          applyFieldValidationState(field, null);
+          return;
+        }
+        const required = isActiveBasis;
         const state = validateNumberInput(field, { fallback: TARGET_NET_DEFAULT, min: 0, required });
         applyFieldValidationState(field, state.message);
       });
@@ -2946,7 +2998,12 @@
 
       Object.entries(derivedNetValues).forEach(([key, value]) => {
         if (key === targetNetBasis) {
-          if (!Number.isFinite(readDesiredIncomeNet(key, null)) && Number.isFinite(value)) {
+          const activeField = getDesiredIncomeField(key);
+          const activeRaw = activeField && typeof activeField.value === 'string'
+            ? activeField.value.trim()
+            : '';
+          const shouldBackfillActive = !isInputEditing(activeField) && activeRaw !== '';
+          if (!Number.isFinite(readDesiredIncomeNet(key, null)) && Number.isFinite(value) && shouldBackfillActive) {
             writeDesiredIncomeNet(key, value);
           }
           return;
@@ -4997,6 +5054,7 @@
     ].forEach(({ control, basis }) => {
       if (!(control instanceof HTMLInputElement)) return;
       const handleInput = () => {
+        control.dataset.editing = 'true';
         targetNetBasis = basis;
         updateDesiredIncomeFromField(basis);
         desiredIncomePreviousNetValues = null;
@@ -5178,6 +5236,25 @@
       controls.lessonCost.addEventListener('input', handleLessonCostInput);
       controls.lessonCost.addEventListener('change', handleLessonCostInput);
     }
+
+    if (controlsPanelToggle instanceof HTMLButtonElement) {
+      controlsPanelToggle.addEventListener('click', () => {
+        setControlsPanelCollapsed(!controlsPanelCollapsed, { save: true });
+      });
+    }
+
+    if (narrowLayoutQuery) {
+      const handleLayoutWidthChange = () => {
+        applyControlsPanelCollapsedState({ save: false });
+      };
+      if (typeof narrowLayoutQuery.addEventListener === 'function') {
+        narrowLayoutQuery.addEventListener('change', handleLayoutWidthChange);
+      } else if (typeof narrowLayoutQuery.addListener === 'function') {
+        narrowLayoutQuery.addListener(handleLayoutWidthChange);
+      }
+    }
+
+    applyControlsPanelCollapsedState({ save: false });
 
     window.addEventListener('resize', scheduleTablesLayoutUpdate);
 

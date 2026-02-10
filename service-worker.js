@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'v7';
+const CACHE_VERSION = 'v8';
 const CACHE_NAME = `course-pricing-calculator-${CACHE_VERSION}`;
 const PRECACHE_URLS = [
   './',
@@ -66,6 +66,12 @@ self.addEventListener('fetch', event => {
   }
 
   if (event.request.mode === 'navigate') {
+    event.respondWith(fetchAndCache(event.request));
+    return;
+  }
+
+  const networkFirstDestinations = new Set(['script', 'style', 'manifest']);
+  if (networkFirstDestinations.has(event.request.destination)) {
     event.respondWith(fetchAndCache(event.request));
     return;
   }

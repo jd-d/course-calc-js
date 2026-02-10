@@ -1772,6 +1772,13 @@
       align-items: flex-start;
     }
 
+    .price-line-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      align-items: stretch;
+    }
+
     .price-line {
       display: flex;
       flex-direction: column;
@@ -1805,6 +1812,29 @@
     .price-line .price-tertiary {
       font-size: 0.75rem;
       color: var(--text-muted);
+    }
+
+    .price-line--mini {
+      padding: 6px 8px;
+      border-radius: 8px;
+      gap: 1px;
+      white-space: normal;
+    }
+
+    .price-line--mini strong {
+      font-size: 0.95rem;
+    }
+
+    .price-line--mini .price-label {
+      font-size: 0.68rem;
+    }
+
+    .price-line--mini .price-secondary {
+      font-size: 0.74rem;
+    }
+
+    .price-line--mini .price-tertiary {
+      font-size: 0.72rem;
     }
 
     .price-value--out-of-range {

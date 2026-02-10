@@ -24,6 +24,7 @@
 - [ ] Auto-select light or dark mode by time of day but add a lock icon next to it the user can press to keep it on either. They can still manually switch the switch (they don't need to actually press the lock first) but it won't auto change if the lock is locked.
 
 ## DONE
+- [x] Make the left Inputs sidebar collapsible to a minimal right-pointing handle (`>`), with one-click re-expand. (2026-02-10)
 - [x] Bump cache/storage versioning to unstick stale browser data while migrating existing saved key field values. (2026-02-08)
 - [x] Investigate and fix conditions where Desired Net Income fields become negative and then stop syncing when another income basis field is edited. (2026-02-08)
 - [x] Allow comma-separated manual lesson price preferences (max 4) and render each preference as its own mini box in each pricing-table cell. (2026-02-08)

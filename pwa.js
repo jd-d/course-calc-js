@@ -1,7 +1,7 @@
 (function () {
   const DARK_THEME_COLOR = '#0a0c12';
   const LIGHT_THEME_COLOR = '#eff4ff';
-  const SERVICE_WORKER_VERSION = '2026-02-08-v1';
+  const SERVICE_WORKER_VERSION = '2026-02-09-v1';
   const themeColorMeta = document.querySelector('meta[name="theme-color"]');
 
   function resolveTheme(value) {

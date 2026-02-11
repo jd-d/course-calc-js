@@ -3710,7 +3710,7 @@ function populateBreakdownDialog(context) {
     variantLabel =
       variant === "base"
         ? `Full attendance at set lesson price${manualLabel}`
-        : `Buffered price (+${formatFixed(latestBufferPercent, 1)}% extra safety margin)${manualLabel}`;
+        : `Attendance shortfall (${formatFixed(latestBufferPercent, 1)}% less revenue)${manualLabel}`;
   } else {
     variantLabel =
       variant === "base" ? "Base price (no buffer)" : `Buffered price (+${formatFixed(latestBufferPercent, 1)}% extra safety margin)`;
@@ -4454,7 +4454,7 @@ function computeTables(inputs) {
   }
 
   const vatDivisor = Math.max(1 + vatRate, 0.0001);
-  const bufferedMultiplier = Math.max(1 + buffer, 0);
+  const attendanceMultiplier = Math.max(1 - buffer, 0);
   const formattedBuffer = formatFixed(bufferPercent, 1);
 
   for (const students of sortedStudents) {
@@ -4503,10 +4503,8 @@ function computeTables(inputs) {
 
       const manualOptions = normalizedManualLessonPrices.map((priceInclVatPerStudent, index) => {
         const priceExVatPerStudent = priceInclVatPerStudent / vatDivisor;
-        const bufferedPriceExVatPerStudent = priceExVatPerStudent * bufferedMultiplier;
-        const bufferedPriceInclVatPerStudent = priceInclVatPerStudent * bufferedMultiplier;
         const annualRevenue = priceExVatPerStudent * students * classesPerYear;
-        const bufferedRevenue = bufferedPriceExVatPerStudent * students * classesPerYear;
+        const bufferedRevenue = annualRevenue * attendanceMultiplier;
 
         const annualNet = computeNetIncomeFromRevenue(annualRevenue, fixedCosts, effectiveTaxRate, annualVariableCosts);
         const bufferedAnnualNet = computeNetIncomeFromRevenue(bufferedRevenue, fixedCosts, effectiveTaxRate, annualVariableCosts);
@@ -4520,12 +4518,6 @@ function computeTables(inputs) {
           studentCount: students,
           classesPerYearValue: classesPerYear,
         });
-        const bufferedManualBreakdown = buildPriceBreakdown({
-          priceExVatValue: bufferedPriceExVatPerStudent,
-          priceInclVatValue: bufferedPriceInclVatPerStudent,
-          studentCount: students,
-          classesPerYearValue: classesPerYear,
-        });
 
         const baseManual = {
           priceExVat: priceExVatPerStudent,
@@ -4535,9 +4527,9 @@ function computeTables(inputs) {
           monthlyNet,
         };
         const bufferedManual = {
-          priceExVat: bufferedPriceExVatPerStudent,
-          priceInclVat: bufferedPriceInclVatPerStudent,
-          breakdown: bufferedManualBreakdown,
+          priceExVat: priceExVatPerStudent,
+          priceInclVat: priceInclVatPerStudent,
+          breakdown: manualBreakdown,
           annualNet: bufferedAnnualNet,
           monthlyNet: bufferedMonthlyNet,
         };
@@ -4555,12 +4547,12 @@ function computeTables(inputs) {
         });
         latestResults.push({
           source: `Manual price ${index + 1}`,
-          variant: `Buffered +${formattedBuffer}%`,
+          variant: `Shortfall ${formattedBuffer}%`,
           students,
           classesPerWeek: column.classesPerWeek,
           classesPerYear: Math.round(classesPerYear),
-          priceExVat: Math.round(bufferedPriceExVatPerStudent),
-          priceInclVat: Math.round(bufferedPriceInclVatPerStudent),
+          priceExVat: Math.round(priceExVatPerStudent),
+          priceInclVat: Math.round(priceInclVatPerStudent),
           monthlyNet: bufferedMonthlyNet,
           annualNet: bufferedAnnualNet,
         });

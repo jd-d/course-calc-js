@@ -26,6 +26,7 @@
 
 ## DONE
 
+- [x] Add an `Average monthly` acceptable-income basis (12-month average) alongside `Per active month`, with correct conversion and square-highlighting logic. (2026-02-11)
 - [x] Fix buffer tooltip overflow and show fixed-price buffer shortfall line (`Annual ... -X% buffer`) with matching acceptable-income highlight logic. (2026-02-11)
 - [x] Clarify buffer toggle semantics: buffer affects dynamic target price only; manual fixed prices stay fixed, with an explanatory tooltip in the table UI. (2026-02-11)
 - [x] Implement hybrid pricing input model so desired income and manual lesson prices can be active together (max 3 manual prices + dynamic block). (2026-02-11)

@@ -41,6 +41,7 @@ const controls = {
   acceptableIncomeMin: document.getElementById("acceptable-income-min"),
   acceptableIncomeMax: document.getElementById("acceptable-income-max"),
   acceptableIncomeBasisMonthly: document.getElementById("acceptable-income-basis-monthly"),
+  acceptableIncomeBasisAverageMonthly: document.getElementById("acceptable-income-basis-average-monthly"),
   acceptableIncomeBasisAnnual: document.getElementById("acceptable-income-basis-annual"),
   taxRate: document.getElementById("tax-rate"),
   fixedCosts: document.getElementById("fixed-costs"),
@@ -1124,8 +1125,6 @@ function synchronizeLockedAcceptableIncomeNetValues(taxRate, activeMonths) {
     return;
   }
 
-  const months = Number.isFinite(activeMonths) && activeMonths > 0 ? activeMonths : MONTHS_PER_YEAR;
-
   const convertGrossBasisToAnnualNet = (grossValue, basis) => {
     if (!Number.isFinite(grossValue)) {
       return null;
@@ -1135,10 +1134,8 @@ function synchronizeLockedAcceptableIncomeNetValues(taxRate, activeMonths) {
       return null;
     }
     const effectiveBasis = ACCEPTABLE_INCOME_BASIS_VALUES.includes(basis) ? basis : acceptableIncomeBasis;
-    if (effectiveBasis === "annual") {
-      return netBasis;
-    }
-    return netBasis * months;
+    const annualMultiplier = getAcceptableIncomeBasisAnnualMultiplier(effectiveBasis, activeMonths);
+    return netBasis * annualMultiplier;
   };
 
   const { value: minGross, basis: minBasis } = getLockedAcceptableIncomeGross("min");
@@ -1173,7 +1170,7 @@ const ERROR_MESSAGE_LESSON_PRICE_LIST_MAX = `enter up to ${MAX_MANUAL_LESSON_PRI
 const BASE_WORK_DAYS_PER_WEEK = 7;
 const TARGET_NET_DEFAULT = 50000;
 
-const ACCEPTABLE_INCOME_BASIS_VALUES = ["monthly", "annual"];
+const ACCEPTABLE_INCOME_BASIS_VALUES = ["monthly", "averageMonthly", "annual"];
 let acceptableIncomeBasis = "monthly";
 let acceptableIncomeMinAnnualNet = null;
 let acceptableIncomeMaxAnnualNet = null;
@@ -1182,6 +1179,27 @@ let lastActiveMonths = MONTHS_PER_YEAR;
 let lastWorkingWeeks = WEEKS_PER_YEAR;
 let timeOffSyncSource = "months";
 let timeOffSyncActive = false;
+
+function getAcceptableIncomeBasisAnnualMultiplier(basis, activeMonths) {
+  const normalizedMonths = Number.isFinite(activeMonths) && activeMonths > 0 ? activeMonths : MONTHS_PER_YEAR;
+  if (basis === "annual") {
+    return 1;
+  }
+  if (basis === "averageMonthly") {
+    return MONTHS_PER_YEAR;
+  }
+  return normalizedMonths;
+}
+
+function getAcceptableIncomeBasisLabelText(basis) {
+  if (basis === "annual") {
+    return "Annual";
+  }
+  if (basis === "averageMonthly") {
+    return "Average monthly";
+  }
+  return "Per active month";
+}
 
 function updateDesiredIncomeTitle() {
   const isGross = desiredIncomeDisplayMode === "gross";
@@ -1223,7 +1241,7 @@ function updateAcceptableIncomeBasisLabel() {
     return;
   }
   const modeLabel = desiredIncomeDisplayMode === "gross" ? "Gross" : "Net";
-  const basisLabel = acceptableIncomeBasis === "annual" ? "Annual" : "Monthly";
+  const basisLabel = getAcceptableIncomeBasisLabelText(acceptableIncomeBasis);
   acceptableIncomeBasisLabel.textContent = `${basisLabel} (${modeLabel})`;
 }
 
@@ -1327,13 +1345,13 @@ function refreshAcceptableIncomeDisplay(taxRate, options = {}) {
   updateAcceptableIncomeBasisLabel();
   const minInput = controls.acceptableIncomeMin instanceof HTMLInputElement ? controls.acceptableIncomeMin : null;
   const maxInput = controls.acceptableIncomeMax instanceof HTMLInputElement ? controls.acceptableIncomeMax : null;
-  const monthsForRange = lastActiveMonths > 0 ? lastActiveMonths : MONTHS_PER_YEAR;
 
   const toDisplay = (annualNet) => {
     if (!Number.isFinite(annualNet)) {
       return "";
     }
-    const netBasis = acceptableIncomeBasis === "annual" ? annualNet : annualNet / monthsForRange;
+    const annualMultiplier = getAcceptableIncomeBasisAnnualMultiplier(acceptableIncomeBasis, lastActiveMonths);
+    const netBasis = annualNet / annualMultiplier;
     const value = desiredIncomeDisplayMode === "gross" ? convertNetToGross(netBasis, taxRate) : netBasis;
     return Number.isFinite(value) ? formatFixed(value, 2) : "";
   };
@@ -1443,8 +1461,8 @@ function updateAcceptableIncomeFromInput(type) {
       setLockedAcceptableIncomeGross(type, null);
     }
   }
-  const months = lastActiveMonths > 0 ? lastActiveMonths : MONTHS_PER_YEAR;
-  const annualNet = acceptableIncomeBasis === "annual" ? normalizedNet : normalizedNet * months;
+  const annualMultiplier = getAcceptableIncomeBasisAnnualMultiplier(acceptableIncomeBasis, lastActiveMonths);
+  const annualNet = normalizedNet * annualMultiplier;
   if (type === "min") {
     acceptableIncomeMinAnnualNet = Number.isFinite(annualNet) ? annualNet : null;
   } else {
@@ -3937,6 +3955,7 @@ function shouldHighlightIncome({ monthlyNet, annualNet }, options = {}) {
   const normalizedTaxRate = Math.min(Math.max(taxRate, 0), 0.9999);
   const denominator = Math.max(1 - normalizedTaxRate, 0.0001);
   const monthsForRange = activeMonths > 0 ? activeMonths : MONTHS_PER_YEAR;
+  const averageMonthsForRange = MONTHS_PER_YEAR;
 
   const convertNetToDisplay = (value) => {
     if (!Number.isFinite(value)) {
@@ -3952,6 +3971,25 @@ function shouldHighlightIncome({ monthlyNet, annualNet }, options = {}) {
     const valueDisplay = convertNetToDisplay(annualNet);
     const minDisplay = hasMin ? convertNetToDisplay(minAnnualNet) : null;
     const maxDisplay = hasMax ? convertNetToDisplay(maxAnnualNet) : null;
+    if (!Number.isFinite(valueDisplay)) {
+      return false;
+    }
+    if (Number.isFinite(minDisplay) && valueDisplay < minDisplay) {
+      return false;
+    }
+    if (Number.isFinite(maxDisplay) && valueDisplay > maxDisplay) {
+      return false;
+    }
+    return true;
+  }
+
+  if (basis === "averageMonthly") {
+    if (!Number.isFinite(annualNet)) {
+      return false;
+    }
+    const valueDisplay = convertNetToDisplay(annualNet / averageMonthsForRange);
+    const minDisplay = hasMin ? convertNetToDisplay(minAnnualNet / averageMonthsForRange) : null;
+    const maxDisplay = hasMax ? convertNetToDisplay(maxAnnualNet / averageMonthsForRange) : null;
     if (!Number.isFinite(valueDisplay)) {
       return false;
     }
@@ -4911,6 +4949,7 @@ if (controls.acceptableIncomeMax instanceof HTMLInputElement) {
 
 const acceptableBasisControls = [
   { control: controls.acceptableIncomeBasisMonthly, value: "monthly" },
+  { control: controls.acceptableIncomeBasisAverageMonthly, value: "averageMonthly" },
   { control: controls.acceptableIncomeBasisAnnual, value: "annual" },
 ];
 

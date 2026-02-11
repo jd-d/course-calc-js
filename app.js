@@ -68,6 +68,7 @@
       workingDaysDisplay: document.getElementById('working-days-display'),
       rememberInputs: document.getElementById('remember-inputs'),
       resetSavedInputs: document.getElementById('reset-saved-inputs'),
+      clearAllAppData: document.getElementById('clear-all-app-data'),
       exportSettings: document.getElementById('export-settings'),
       importSettings: document.getElementById('import-settings'),
       importSettingsInput: document.getElementById('import-settings-input')
@@ -1599,8 +1600,12 @@
 
       Object.keys(desiredIncomeFieldMap).forEach(key => {
         const netKey = `__desiredIncomeNet_${key}`;
-        const parsed = Number(normalized[netKey]);
-        normalized[netKey] = Number.isFinite(parsed) ? Math.max(parsed, 0) : null;
+        if (normalized[netKey] === null || typeof normalized[netKey] === 'undefined') {
+          normalized[netKey] = null;
+        } else {
+          const parsed = Number(normalized[netKey]);
+          normalized[netKey] = Number.isFinite(parsed) ? Math.max(parsed, 0) : null;
+        }
       });
 
       const acceptableMin = Number(normalized[PERSISTED_ACCEPTABLE_INCOME_MIN_KEY]);
@@ -2075,6 +2080,38 @@
           }
         });
       }
+    }
+
+    if (controls.clearAllAppData instanceof HTMLButtonElement) {
+      controls.clearAllAppData.addEventListener('click', () => {
+        if (!window.confirm(
+          'This will clear all saved inputs, unregister the service worker, and reload the page. Continue?'
+        )) {
+          return;
+        }
+        clearPersistedInputs();
+        try {
+          localStorage.removeItem('course-pricing-theme');
+        } catch (error) {
+          // Ignore storage errors.
+        }
+        if ('serviceWorker' in navigator) {
+          navigator.serviceWorker.getRegistrations().then(registrations => {
+            const tasks = registrations.map(r => r.unregister());
+            return Promise.all(tasks);
+          }).then(() => {
+            if ('caches' in window) {
+              return caches.keys().then(names => Promise.all(names.map(n => caches.delete(n))));
+            }
+          }).then(() => {
+            window.location.reload();
+          }).catch(() => {
+            window.location.reload();
+          });
+        } else {
+          window.location.reload();
+        }
+      });
     }
 
     if (controls.exportSettings instanceof HTMLButtonElement) {
@@ -5067,7 +5104,13 @@
       });
       control.addEventListener('input', handleInput);
       control.addEventListener('change', () => {
-        handleInput();
+        // Update state without setting dataset.editing — the change event fires
+        // after blur, so setting editing here would leave it stuck with no
+        // subsequent blur to clear it (Bug #6).
+        targetNetBasis = basis;
+        updateDesiredIncomeFromField(basis);
+        desiredIncomePreviousNetValues = null;
+        delete control.dataset.editing;
         if (control.classList.contains(FIELD_ERROR_CLASS)) {
           return;
         }
@@ -5218,14 +5261,26 @@
       controls.weeksOffYear.addEventListener('change', syncWeeks);
     }
 
+    const deferredRenderInputs = new Set([
+      controls.lessonPriceMin,
+      controls.lessonPriceMax
+    ]);
+
     Object.values(controls).forEach(control => {
       if (!(control instanceof HTMLInputElement)) return;
       if (control === controls.lessonCost || control === controls.importSettingsInput) return;
       control.addEventListener('change', render);
-      control.addEventListener('input', event => {
-        if (event.target.type === 'text') return;
-        render();
-      });
+      if (deferredRenderInputs.has(control)) {
+        // Lesson price min/max: render only on change (blur), not every
+        // keystroke, so the auto-correct doesn't fight the user mid-edit.
+        control.addEventListener('focus', () => { control.dataset.editing = 'true'; });
+        control.addEventListener('blur', () => { delete control.dataset.editing; });
+      } else {
+        control.addEventListener('input', event => {
+          if (event.target.type === 'text') return;
+          render();
+        });
+      }
     });
 
     if (controls.lessonCost instanceof HTMLInputElement) {
@@ -5302,4 +5357,13 @@
     controls.downloadCsv.addEventListener('click', downloadCsv);
 
     initializePersistence();
+
+    // Runtime version diagnostics — helps detect mixed-asset issues (#6).
+    const APP_BUILD_VERSION = '2026-02-10-fix6';
+    console.info(
+      '[Course Pricing Calculator] app.js %s | SW controlled: %s',
+      APP_BUILD_VERSION,
+      Boolean(navigator.serviceWorker?.controller)
+    );
+
     render();

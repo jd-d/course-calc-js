@@ -3678,13 +3678,7 @@ function populateBreakdownDialog(context) {
   const selectedManualIndex = selectedManualOption ? (Number.isFinite(selectedManualOption.index) ? selectedManualOption.index : 0) : null;
   const useManualSource = Boolean(selectedManualOption);
 
-  const pricingVariant = useManualSource
-    ? variant === "base"
-      ? selectedManualOption.base
-      : selectedManualOption.buffered
-    : variant === "base"
-      ? column.base
-      : column.buffered;
+  const pricingVariant = useManualSource ? selectedManualOption.base : variant === "base" ? column.base : column.buffered;
   if (!pricingVariant || !pricingVariant.breakdown) {
     return false;
   }
@@ -3710,7 +3704,7 @@ function populateBreakdownDialog(context) {
     variantLabel =
       variant === "base"
         ? `Full attendance at set lesson price${manualLabel}`
-        : `Attendance shortfall (${formatFixed(latestBufferPercent, 1)}% less revenue)${manualLabel}`;
+        : `Set lesson price (buffer ignored)${manualLabel}`;
   } else {
     variantLabel =
       variant === "base" ? "Base price (no buffer)" : `Buffered price (+${formatFixed(latestBufferPercent, 1)}% extra safety margin)`;
@@ -4131,12 +4125,14 @@ function buildPricingTable(data, symbol, bufferPercent, options = {}) {
     priceLabel = defaultPriceLabel,
     manualIndex = null,
     priceSource = "dynamic",
+    variantOverride = null,
     compact = false,
   }) => {
     if (!priceData) {
       return "";
     }
 
+    const buttonVariant = variantOverride === "base" || variantOverride === "buffered" ? variantOverride : variant;
     const exVat = formatCurrency(symbol, priceData.priceExVat);
     const inclVat = formatCurrency(symbol, priceData.priceInclVat);
     const outOfRange = isPriceOutOfRange(priceData.priceInclVat);
@@ -4175,7 +4171,7 @@ function buildPricingTable(data, symbol, bufferPercent, options = {}) {
             class="${buttonClass}"
             data-row="${rowIndex}"
             data-column="${columnIndex}"
-            data-variant="${variant}"
+            data-variant="${buttonVariant}"
             data-price-source="${normalizedPriceSource}"${manualIndexAttribute}
           >
             <span class="price-label">${priceLabel}</span>
@@ -4187,6 +4183,8 @@ function buildPricingTable(data, symbol, bufferPercent, options = {}) {
         `;
   };
 
+  const bufferTooltip =
+    "Applies only to the dynamic target-based suggested price. Manual prices are fixed and do not change when buffer is toggled.";
   const toggleMarkup = `<div class="price-display-toggles">
             <label class="display-toggle">
               <input type="checkbox" class="display-toggle-checkbox" data-toggle="exVat" ${showExVat ? "checked" : ""} />
@@ -4202,7 +4200,11 @@ function buildPricingTable(data, symbol, bufferPercent, options = {}) {
             </label>
             <label class="display-toggle display-toggle--buffer">
               <input type="checkbox" class="buffer-toggle-checkbox" ${useBuffer ? "checked" : ""} />
-              <span>Include buffer (+${formattedBuffer}%)</span>
+              <span>Include buffer in target price (+${formattedBuffer}%)</span>
+              <span class="info-icon" tabindex="0" role="button" aria-expanded="false"
+                aria-label="${bufferTooltip}" data-tooltip="${bufferTooltip}"><svg class="icon">
+                  <use href="#icon-info"></use>
+                </svg></span>
             </label>
           </div>`;
 
@@ -4222,7 +4224,7 @@ function buildPricingTable(data, symbol, bufferPercent, options = {}) {
           if (hasManualOptions) {
             const manualOptionButtons = col.manualOptions
               .map((manualOption, manualIndex) => {
-                const priceData = useBuffer ? manualOption.buffered : manualOption.base;
+                const priceData = manualOption.base;
                 return renderPriceButton({
                   priceData,
                   rowIndex,
@@ -4230,6 +4232,7 @@ function buildPricingTable(data, symbol, bufferPercent, options = {}) {
                   priceLabel: `Price ${manualIndex + 1}`,
                   manualIndex,
                   priceSource: "manual",
+                  variantOverride: "base",
                   compact: true,
                 });
               })
@@ -4454,8 +4457,6 @@ function computeTables(inputs) {
   }
 
   const vatDivisor = Math.max(1 + vatRate, 0.0001);
-  const attendanceMultiplier = Math.max(1 - buffer, 0);
-  const formattedBuffer = formatFixed(bufferPercent, 1);
 
   for (const students of sortedStudents) {
     const row = { students, columns: [] };
@@ -4504,13 +4505,10 @@ function computeTables(inputs) {
       const manualOptions = normalizedManualLessonPrices.map((priceInclVatPerStudent, index) => {
         const priceExVatPerStudent = priceInclVatPerStudent / vatDivisor;
         const annualRevenue = priceExVatPerStudent * students * classesPerYear;
-        const bufferedRevenue = annualRevenue * attendanceMultiplier;
 
         const annualNet = computeNetIncomeFromRevenue(annualRevenue, fixedCosts, effectiveTaxRate, annualVariableCosts);
-        const bufferedAnnualNet = computeNetIncomeFromRevenue(bufferedRevenue, fixedCosts, effectiveTaxRate, annualVariableCosts);
 
         const monthlyNet = Number.isFinite(annualNet) && hasActiveMonths ? annualNet / activeMonths : null;
-        const bufferedMonthlyNet = Number.isFinite(bufferedAnnualNet) && hasActiveMonths ? bufferedAnnualNet / activeMonths : null;
 
         const manualBreakdown = buildPriceBreakdown({
           priceExVatValue: priceExVatPerStudent,
@@ -4526,17 +4524,10 @@ function computeTables(inputs) {
           annualNet,
           monthlyNet,
         };
-        const bufferedManual = {
-          priceExVat: priceExVatPerStudent,
-          priceInclVat: priceInclVatPerStudent,
-          breakdown: manualBreakdown,
-          annualNet: bufferedAnnualNet,
-          monthlyNet: bufferedMonthlyNet,
-        };
 
         latestResults.push({
           source: `Manual price ${index + 1}`,
-          variant: "Full attendance",
+          variant: "Fixed price (buffer ignored)",
           students,
           classesPerWeek: column.classesPerWeek,
           classesPerYear: Math.round(classesPerYear),
@@ -4545,24 +4536,12 @@ function computeTables(inputs) {
           monthlyNet,
           annualNet,
         });
-        latestResults.push({
-          source: `Manual price ${index + 1}`,
-          variant: `Shortfall ${formattedBuffer}%`,
-          students,
-          classesPerWeek: column.classesPerWeek,
-          classesPerYear: Math.round(classesPerYear),
-          priceExVat: Math.round(priceExVatPerStudent),
-          priceInclVat: Math.round(priceInclVatPerStudent),
-          monthlyNet: bufferedMonthlyNet,
-          annualNet: bufferedAnnualNet,
-        });
 
         return {
           index,
           priceExVat: priceExVatPerStudent,
           priceInclVat: priceInclVatPerStudent,
           base: baseManual,
-          buffered: bufferedManual,
         };
       });
 

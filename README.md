@@ -67,11 +67,12 @@ Use these steps to confirm acceptable-income persistence treats blank maximums a
 2. Set an acceptable minimum income value, leave the maximum field blank, and toggle any basis if desired.
 3. Reload the page. The acceptable income inputs should show the saved minimum and an empty maximum, and the acceptable range shading should extend through the full graph to represent no upper bound.
 
-Use these steps to confirm comma-separated manual lesson-price preferences render correctly.
+Use these steps to confirm hybrid dynamic + manual lesson-price rendering works correctly.
 
-1. In **Lesson price preferences**, enter up to four values in **Set a specific lesson price (incl. VAT)**, for example `95, 105, 115`.
-2. Confirm each pricing-table cell now shows one mini price box per entered value.
-3. Toggle **Include buffer** and confirm each mini box updates its income figures while retaining the same per-student price.
+1. In **Lesson price preferences**, enter up to three values in **Set a specific lesson price (incl. VAT)**, for example `95, 105, 115`.
+2. Confirm each pricing-table cell shows one dynamic target block plus one mini manual block per entered value.
+3. Edit any field in **Desired Net/Gross Income** while manual prices are filled in, and confirm desired-income fields remain editable.
+4. Toggle **Include buffer** and confirm both the dynamic and manual blocks update consistently.
 
 Use these steps to confirm Desired Net Income values do not go negative in manual lesson-price mode.
 

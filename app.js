@@ -1167,7 +1167,7 @@ const INFO_ICON_ERROR_CLASS = "info-icon--error";
 const ERROR_MESSAGE_INVALID = "please enter a valid number";
 const ERROR_MESSAGE_EMPTY = "this field is required";
 const ERROR_MESSAGE_RANGE_ORDER = "min cannot be greater than max";
-const MAX_MANUAL_LESSON_PRICE_OPTIONS = 4;
+const MAX_MANUAL_LESSON_PRICE_OPTIONS = 3;
 const ERROR_MESSAGE_LESSON_PRICE_LIST_FORMAT = "use comma-separated prices (for example: 95, 105)";
 const ERROR_MESSAGE_LESSON_PRICE_LIST_MAX = `enter up to ${MAX_MANUAL_LESSON_PRICE_OPTIONS} prices`;
 const BASE_WORK_DAYS_PER_WEEK = 7;
@@ -3147,20 +3147,17 @@ function findBreakdownButton(context) {
     return null;
   }
   const variantValue = variant === "base" ? "base" : "buffered";
+  const priceSource = context.priceSource === "manual" ? "manual" : "dynamic";
   const manualIndex = Number.isFinite(context.manualIndex) && context.manualIndex >= 0 ? Math.trunc(context.manualIndex) : null;
-  const selectorBase = `button.price-line[data-row="${rowIndex}"][data-column="${columnIndex}"][data-variant="${variantValue}"]`;
+  const selectorBase = `button.price-line[data-row="${rowIndex}"][data-column="${columnIndex}"][data-variant="${variantValue}"][data-price-source="${priceSource}"]`;
 
-  if (manualIndex !== null) {
+  if (priceSource === "manual" && manualIndex !== null) {
     return (
       tablesContainer.querySelector(`${selectorBase}[data-manual-index="${manualIndex}"]`) || tablesContainer.querySelector(selectorBase)
     );
   }
 
-  return (
-    tablesContainer.querySelector(`${selectorBase}:not([data-manual-index])`) ||
-    tablesContainer.querySelector(`${selectorBase}[data-manual-index="0"]`) ||
-    tablesContainer.querySelector(selectorBase)
-  );
+  return tablesContainer.querySelector(selectorBase);
 }
 
 function formatBreakdownCurrency(value) {
@@ -3654,15 +3651,13 @@ function populateBreakdownDialog(context) {
     return false;
   }
 
-  const isTargetMode = latestPricingMode === PRICING_MODE_TARGET;
-  const isLessonMode = latestPricingMode === PRICING_MODE_LESSON;
-
-  if (!isTargetMode && !isLessonMode) {
+  if (latestPricingMode !== PRICING_MODE_TARGET) {
     return false;
   }
 
   const { rowIndex, columnIndex, variant } = context;
   const requestedManualIndex = Number.isFinite(context.manualIndex) && context.manualIndex >= 0 ? Math.trunc(context.manualIndex) : null;
+  const requestedPriceSource = context.priceSource === "manual" ? "manual" : "dynamic";
   const row = latestPricingData[rowIndex];
   if (!row || !Array.isArray(row.columns)) {
     return false;
@@ -3674,14 +3669,16 @@ function populateBreakdownDialog(context) {
   }
 
   const manualOptions = Array.isArray(column.manualOptions) ? column.manualOptions : [];
-  const selectedManualOption = manualOptions.length
-    ? requestedManualIndex !== null
-      ? manualOptions[requestedManualIndex] || manualOptions[0]
-      : manualOptions[0]
-    : null;
+  const selectedManualOption =
+    requestedPriceSource === "manual" && manualOptions.length
+      ? requestedManualIndex !== null
+        ? manualOptions[requestedManualIndex] || manualOptions[0]
+        : manualOptions[0]
+      : null;
   const selectedManualIndex = selectedManualOption ? (Number.isFinite(selectedManualOption.index) ? selectedManualOption.index : 0) : null;
+  const useManualSource = Boolean(selectedManualOption);
 
-  const pricingVariant = selectedManualOption
+  const pricingVariant = useManualSource
     ? variant === "base"
       ? selectedManualOption.base
       : selectedManualOption.buffered
@@ -3708,7 +3705,7 @@ function populateBreakdownDialog(context) {
   const classesPerYearDisplay = Number.isFinite(column.classesPerYear) ? numberFormatter.format(Math.round(column.classesPerYear)) : "—";
 
   let variantLabel;
-  if (isLessonMode) {
+  if (useManualSource) {
     const manualLabel = selectedManualIndex !== null && manualOptions.length > 1 ? ` (price ${selectedManualIndex + 1})` : "";
     variantLabel =
       variant === "base"
@@ -3827,6 +3824,7 @@ function openBreakdownDialog(context, triggerElement) {
     rowIndex: Number(context?.rowIndex),
     columnIndex: Number(context?.columnIndex),
     variant: context?.variant === "base" ? "base" : "buffered",
+    priceSource: context?.priceSource === "manual" ? "manual" : "dynamic",
     manualIndex:
       Number.isFinite(Number(context?.manualIndex)) && Number(context?.manualIndex) >= 0 ? Math.trunc(Number(context.manualIndex)) : null,
   };
@@ -4124,16 +4122,17 @@ function buildPricingTable(data, symbol, bufferPercent, options = {}) {
   };
 
   const variant = useBuffer ? "buffered" : "base";
-  const defaultPriceLabel =
-    mode === PRICING_MODE_LESSON
-      ? useBuffer
-        ? `Shortfall ${formattedBuffer}%`
-        : "Full attendance"
-      : useBuffer
-        ? `Buffered +${formattedBuffer}%`
-        : "Base price";
+  const defaultPriceLabel = useBuffer ? `Buffered +${formattedBuffer}%` : "Base price";
 
-  const renderPriceButton = ({ priceData, rowIndex, columnIndex, priceLabel = defaultPriceLabel, manualIndex = null, compact = false }) => {
+  const renderPriceButton = ({
+    priceData,
+    rowIndex,
+    columnIndex,
+    priceLabel = defaultPriceLabel,
+    manualIndex = null,
+    priceSource = "dynamic",
+    compact = false,
+  }) => {
     if (!priceData) {
       return "";
     }
@@ -4168,6 +4167,7 @@ function buildPricingTable(data, symbol, bufferPercent, options = {}) {
     const hourlyMarkup = displayHourly ? `<span class="price-tertiary">${hourlyRateLabel} ${hourlyDisplay}</span>` : "";
     const annualMarkup = displayAnnual ? `<span class="price-secondary">${annualIncomeLabel} ${annualIncomeDisplay}</span>` : "";
     const manualIndexAttribute = Number.isInteger(manualIndex) ? ` data-manual-index="${manualIndex}"` : "";
+    const normalizedPriceSource = priceSource === "manual" ? "manual" : "dynamic";
 
     return `
           <button
@@ -4175,7 +4175,8 @@ function buildPricingTable(data, symbol, bufferPercent, options = {}) {
             class="${buttonClass}"
             data-row="${rowIndex}"
             data-column="${columnIndex}"
-            data-variant="${variant}"${manualIndexAttribute}
+            data-variant="${variant}"
+            data-price-source="${normalizedPriceSource}"${manualIndexAttribute}
           >
             <span class="price-label">${priceLabel}</span>
             <strong class="${valueClass}">${inclVat}</strong>
@@ -4215,8 +4216,9 @@ function buildPricingTable(data, symbol, bufferPercent, options = {}) {
     .map((row, rowIndex) => {
       const cells = row.columns
         .map((col, columnIndex) => {
-          const hasManualOptions = mode === PRICING_MODE_LESSON && Array.isArray(col.manualOptions) && col.manualOptions.length > 1;
-
+          const dynamicPriceData = useBuffer ? col.buffered : col.base;
+          const hasManualOptions = Array.isArray(col.manualOptions) && col.manualOptions.length > 0;
+          let manualOptionsMarkup = "";
           if (hasManualOptions) {
             const manualOptionButtons = col.manualOptions
               .map((manualOption, manualIndex) => {
@@ -4227,26 +4229,24 @@ function buildPricingTable(data, symbol, bufferPercent, options = {}) {
                   columnIndex,
                   priceLabel: `Price ${manualIndex + 1}`,
                   manualIndex,
+                  priceSource: "manual",
                   compact: true,
                 });
               })
               .join("");
-
-            return `
-                  <td>
-                    <div class="price-line-group">${manualOptionButtons}</div>
-                  </td>
-                `;
+            manualOptionsMarkup = `<div class="price-line-group">${manualOptionButtons}</div>`;
           }
-
-          const priceData = useBuffer ? col.buffered : col.base;
           return `
                 <td>
-                  ${renderPriceButton({
-                    priceData,
-                    rowIndex,
-                    columnIndex,
-                  })}
+                  <div class="price-pair">
+                    ${renderPriceButton({
+                      priceData: dynamicPriceData,
+                      rowIndex,
+                      columnIndex,
+                      priceSource: "dynamic",
+                    })}
+                    ${manualOptionsMarkup}
+                  </div>
                 </td>
               `;
         })
@@ -4375,8 +4375,7 @@ function computeTables(inputs) {
   if (!normalizedManualLessonPrices.length && Number.isFinite(lessonCostInclVat) && lessonCostInclVat >= 0) {
     normalizedManualLessonPrices.push(lessonCostInclVat);
   }
-  const manualMode = normalizedManualLessonPrices.length > 0;
-  const mode = manualMode ? PRICING_MODE_LESSON : PRICING_MODE_TARGET;
+  const mode = PRICING_MODE_TARGET;
 
   const pricingData = [];
   const effectiveTaxRate = Math.min(taxRate, 0.99);
@@ -4385,12 +4384,11 @@ function computeTables(inputs) {
   const hasWorkingWeeks = Number.isFinite(workingWeeks) && workingWeeks > 0;
   const hasActiveMonths = Number.isFinite(activeMonths) && activeMonths > 0;
 
-  let manualNetSummary = null;
   let revenueNeeded = null;
 
   if (!hasSchedule) {
     latestResultsMode = mode;
-    return { pricingData, bufferPercent, revenueNeeded, mode, manualNetSummary };
+    return { pricingData, bufferPercent, revenueNeeded, mode };
   }
 
   const sortedStudents = [...studentsPerClass];
@@ -4446,117 +4444,18 @@ function computeTables(inputs) {
     };
   }
 
-  if (mode === PRICING_MODE_LESSON) {
-    const vatDivisor = Math.max(1 + vatRate, 0.0001);
-    const attendanceMultiplier = Math.max(1 - buffer, 0);
-    const formattedBuffer = formatFixed(bufferPercent, 1);
-
-    for (const students of sortedStudents) {
-      const row = { students, columns: [] };
-
-      for (const column of columnsMeta) {
-        const classesPerYear = column.classesPerYear;
-        const annualVariableCosts =
-          variableCostPerClass * classesPerYear +
-          variableCostPerStudent * students * classesPerYear +
-          variableCostPerStudentMonthly * students * normalizedActiveMonths;
-        const manualOptions = normalizedManualLessonPrices.map((priceInclVatPerStudent, index) => {
-          const priceExVatPerStudent = priceInclVatPerStudent / vatDivisor;
-          const annualRevenue = priceExVatPerStudent * students * classesPerYear;
-          const bufferedRevenue = annualRevenue * attendanceMultiplier;
-
-          const annualNet = computeNetIncomeFromRevenue(annualRevenue, fixedCosts, effectiveTaxRate, annualVariableCosts);
-          const bufferedAnnualNet = computeNetIncomeFromRevenue(bufferedRevenue, fixedCosts, effectiveTaxRate, annualVariableCosts);
-
-          const monthlyNet = Number.isFinite(annualNet) && hasActiveMonths ? annualNet / activeMonths : null;
-          const bufferedMonthlyNet = Number.isFinite(bufferedAnnualNet) && hasActiveMonths ? bufferedAnnualNet / activeMonths : null;
-
-          if (!manualNetSummary && Number.isFinite(annualNet)) {
-            manualNetSummary = {
-              annual: annualNet,
-              monthly: Number.isFinite(monthlyNet) ? monthlyNet : null,
-              weekly: hasWorkingWeeks ? annualNet / workingWeeks : null,
-              averageWeekly: annualNet / WEEKS_PER_YEAR,
-              averageMonthly: annualNet / MONTHS_PER_YEAR,
-            };
-          }
-
-          const baseBreakdown = buildPriceBreakdown({
-            priceExVatValue: priceExVatPerStudent,
-            priceInclVatValue: priceInclVatPerStudent,
-            studentCount: students,
-            classesPerYearValue: classesPerYear,
-          });
-
-          const base = {
-            priceExVat: priceExVatPerStudent,
-            priceInclVat: priceInclVatPerStudent,
-            breakdown: baseBreakdown,
-            annualNet,
-            monthlyNet,
-          };
-          const buffered = {
-            priceExVat: priceExVatPerStudent,
-            priceInclVat: priceInclVatPerStudent,
-            breakdown: baseBreakdown,
-            annualNet: bufferedAnnualNet,
-            monthlyNet: bufferedMonthlyNet,
-          };
-
-          latestResults.push({
-            variant: `Price ${formatFixed(priceInclVatPerStudent, 2)} full attendance`,
-            students,
-            classesPerWeek: column.classesPerWeek,
-            classesPerYear: Math.round(classesPerYear),
-            priceInclVat: Math.round(priceInclVatPerStudent),
-            monthlyNet,
-            annualNet,
-          });
-          latestResults.push({
-            variant: `Price ${formatFixed(priceInclVatPerStudent, 2)} with ${formattedBuffer}% shortfall`,
-            students,
-            classesPerWeek: column.classesPerWeek,
-            classesPerYear: Math.round(classesPerYear),
-            priceInclVat: Math.round(priceInclVatPerStudent),
-            monthlyNet: bufferedMonthlyNet,
-            annualNet: bufferedAnnualNet,
-          });
-
-          return {
-            index,
-            priceExVat: priceExVatPerStudent,
-            priceInclVat: priceInclVatPerStudent,
-            base,
-            buffered,
-          };
-        });
-
-        const firstManualOption = manualOptions[0] || null;
-
-        row.columns.push({
-          classesPerWeek: column.classesPerWeek,
-          classesPerYear,
-          manualOptions,
-          base: firstManualOption ? firstManualOption.base : null,
-          buffered: firstManualOption ? firstManualOption.buffered : null,
-        });
-      }
-
-      pricingData.push(row);
-    }
-
-    latestResultsMode = mode;
-    return { pricingData, bufferPercent, revenueNeeded, mode, manualNetSummary };
-  }
-
   const denominator = Math.max(1 - effectiveTaxRate, 0.0001);
   const profitBeforeTax = targetNet / denominator;
   revenueNeeded = profitBeforeTax + fixedCosts;
 
   if (!Number.isFinite(revenueNeeded) || revenueNeeded <= 0) {
     latestResultsMode = mode;
-    return { pricingData, bufferPercent, revenueNeeded, mode, manualNetSummary };
+    return { pricingData, bufferPercent, revenueNeeded, mode };
   }
+
+  const vatDivisor = Math.max(1 + vatRate, 0.0001);
+  const attendanceMultiplier = Math.max(1 - buffer, 0);
+  const formattedBuffer = formatFixed(bufferPercent, 1);
 
   for (const students of sortedStudents) {
     const row = { students, columns: [] };
@@ -4602,9 +4501,75 @@ function computeTables(inputs) {
       const baseMonthlyNet = Number.isFinite(baseAnnualNet) && hasActiveMonths ? baseAnnualNet / activeMonths : null;
       const bufferedMonthlyNet = Number.isFinite(bufferedAnnualNet) && hasActiveMonths ? bufferedAnnualNet / activeMonths : null;
 
+      const manualOptions = normalizedManualLessonPrices.map((priceInclVatPerStudent, index) => {
+        const priceExVatPerStudent = priceInclVatPerStudent / vatDivisor;
+        const annualRevenue = priceExVatPerStudent * students * classesPerYear;
+        const bufferedRevenue = annualRevenue * attendanceMultiplier;
+
+        const annualNet = computeNetIncomeFromRevenue(annualRevenue, fixedCosts, effectiveTaxRate, annualVariableCosts);
+        const bufferedAnnualNet = computeNetIncomeFromRevenue(bufferedRevenue, fixedCosts, effectiveTaxRate, annualVariableCosts);
+
+        const monthlyNet = Number.isFinite(annualNet) && hasActiveMonths ? annualNet / activeMonths : null;
+        const bufferedMonthlyNet = Number.isFinite(bufferedAnnualNet) && hasActiveMonths ? bufferedAnnualNet / activeMonths : null;
+
+        const manualBreakdown = buildPriceBreakdown({
+          priceExVatValue: priceExVatPerStudent,
+          priceInclVatValue: priceInclVatPerStudent,
+          studentCount: students,
+          classesPerYearValue: classesPerYear,
+        });
+
+        const baseManual = {
+          priceExVat: priceExVatPerStudent,
+          priceInclVat: priceInclVatPerStudent,
+          breakdown: manualBreakdown,
+          annualNet,
+          monthlyNet,
+        };
+        const bufferedManual = {
+          priceExVat: priceExVatPerStudent,
+          priceInclVat: priceInclVatPerStudent,
+          breakdown: manualBreakdown,
+          annualNet: bufferedAnnualNet,
+          monthlyNet: bufferedMonthlyNet,
+        };
+
+        latestResults.push({
+          source: `Manual price ${index + 1}`,
+          variant: "Full attendance",
+          students,
+          classesPerWeek: column.classesPerWeek,
+          classesPerYear: Math.round(classesPerYear),
+          priceExVat: Math.round(priceExVatPerStudent),
+          priceInclVat: Math.round(priceInclVatPerStudent),
+          monthlyNet,
+          annualNet,
+        });
+        latestResults.push({
+          source: `Manual price ${index + 1}`,
+          variant: `Shortfall ${formattedBuffer}%`,
+          students,
+          classesPerWeek: column.classesPerWeek,
+          classesPerYear: Math.round(classesPerYear),
+          priceExVat: Math.round(priceExVatPerStudent),
+          priceInclVat: Math.round(priceInclVatPerStudent),
+          monthlyNet: bufferedMonthlyNet,
+          annualNet: bufferedAnnualNet,
+        });
+
+        return {
+          index,
+          priceExVat: priceExVatPerStudent,
+          priceInclVat: priceInclVatPerStudent,
+          base: baseManual,
+          buffered: bufferedManual,
+        };
+      });
+
       row.columns.push({
         classesPerWeek: column.classesPerWeek,
         classesPerYear,
+        manualOptions,
         base: {
           priceExVat,
           priceInclVat,
@@ -4622,21 +4587,27 @@ function computeTables(inputs) {
       });
 
       latestResults.push({
+        source: "Dynamic target",
         variant: "Base (no buffer)",
         students,
         classesPerWeek: column.classesPerWeek,
         classesPerYear: Math.round(classesPerYear),
         priceExVat: roundedBaseExVat,
         priceInclVat: roundedBaseInclVat,
+        monthlyNet: baseMonthlyNet,
+        annualNet: baseAnnualNet,
       });
 
       latestResults.push({
+        source: "Dynamic target",
         variant: `Buffered +${bufferPercent}%`,
         students,
         classesPerWeek: column.classesPerWeek,
         classesPerYear: Math.round(classesPerYear),
         priceExVat: roundedBufferedExVat,
         priceInclVat: roundedBufferedInclVat,
+        monthlyNet: bufferedMonthlyNet,
+        annualNet: bufferedAnnualNet,
       });
     }
 
@@ -4644,42 +4615,13 @@ function computeTables(inputs) {
   }
 
   latestResultsMode = mode;
-  return { pricingData, bufferPercent, revenueNeeded, mode, manualNetSummary };
+  return { pricingData, bufferPercent, revenueNeeded, mode };
 }
 
 function render() {
   const inputs = getInputs();
   latestInputsSnapshot = cloneInputs(inputs);
-  const { pricingData, bufferPercent, revenueNeeded, mode, manualNetSummary } = computeTables(inputs);
-
-  if (mode === PRICING_MODE_LESSON && manualNetSummary) {
-    const normalizeManualNet = (value) => (Number.isFinite(value) ? Math.max(value, 0) : null);
-    const normalizedManualNetSummary = {
-      year: normalizeManualNet(manualNetSummary.annual),
-      week: normalizeManualNet(manualNetSummary.weekly),
-      month: normalizeManualNet(manualNetSummary.monthly),
-      avgWeek: normalizeManualNet(manualNetSummary.averageWeekly),
-      avgMonth: normalizeManualNet(manualNetSummary.averageMonthly),
-    };
-
-    writeDesiredIncomeNet("year", normalizedManualNetSummary.year);
-    inputs.targetNet = normalizedManualNetSummary.year;
-
-    writeDesiredIncomeNet("week", normalizedManualNetSummary.week);
-    inputs.targetNetPerWeek = normalizedManualNetSummary.week;
-
-    writeDesiredIncomeNet("month", normalizedManualNetSummary.month);
-    inputs.targetNetPerMonth = normalizedManualNetSummary.month;
-
-    writeDesiredIncomeNet("avgWeek", normalizedManualNetSummary.avgWeek);
-    inputs.targetNetAveragePerWeek = normalizedManualNetSummary.avgWeek;
-
-    writeDesiredIncomeNet("avgMonth", normalizedManualNetSummary.avgMonth);
-    inputs.targetNetAveragePerMonth = normalizedManualNetSummary.avgMonth;
-
-    refreshDesiredIncomeDisplay(normalizedManualNetSummary, inputs.taxRate, { force: true });
-    refreshAcceptableIncomeDisplay(inputs.taxRate, { force: true });
-  }
+  const { pricingData, bufferPercent, revenueNeeded, mode } = computeTables(inputs);
 
   latestCurrencySymbol = inputs.currencySymbol;
   latestPricingMode = mode;
@@ -4874,23 +4816,19 @@ function downloadCsv() {
     return;
   }
 
-  let header;
-  let rows;
-
-  if (latestResultsMode === PRICING_MODE_LESSON) {
-    header = "Variant,Price incl VAT,Students,Classes per week,Classes per year,Monthly net income,Annual net income";
-    rows = latestResults.map((entry) => {
-      const monthly = Number.isFinite(entry.monthlyNet) ? Math.round(entry.monthlyNet) : "";
-      const annual = Number.isFinite(entry.annualNet) ? Math.round(entry.annualNet) : "";
-      const priceInclVat = Number.isFinite(entry.priceInclVat) ? entry.priceInclVat : "";
-      return [entry.variant, priceInclVat, entry.students, entry.classesPerWeek, entry.classesPerYear, monthly, annual].join(",");
-    });
-  } else {
-    header = "Variant,Students,Classes per week,Classes per year,Price incl VAT,Price ex VAT";
-    rows = latestResults.map((entry) =>
-      [entry.variant, entry.students, entry.classesPerWeek, entry.classesPerYear, entry.priceInclVat, entry.priceExVat].join(","),
+  const header =
+    "Source,Variant,Students,Classes per week,Classes per year,Price incl VAT,Price ex VAT,Monthly net income,Annual net income";
+  const rows = latestResults.map((entry) => {
+    const monthly = Number.isFinite(entry.monthlyNet) ? Math.round(entry.monthlyNet) : "";
+    const annual = Number.isFinite(entry.annualNet) ? Math.round(entry.annualNet) : "";
+    const priceInclVat = Number.isFinite(entry.priceInclVat) ? entry.priceInclVat : "";
+    const priceExVat = Number.isFinite(entry.priceExVat) ? entry.priceExVat : "";
+    const source = typeof entry.source === "string" && entry.source ? entry.source : "Dynamic target";
+    const variant = typeof entry.variant === "string" && entry.variant ? entry.variant : "";
+    return [source, variant, entry.students, entry.classesPerWeek, entry.classesPerYear, priceInclVat, priceExVat, monthly, annual].join(
+      ",",
     );
-  }
+  });
 
   const csvContent = [header, ...rows].join("\n");
   const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
@@ -4904,9 +4842,7 @@ function downloadCsv() {
   document.body.removeChild(link);
   URL.revokeObjectURL(url);
   controls.statusMessage.textContent =
-    latestResultsMode === PRICING_MODE_LESSON
-      ? "CSV download started. File lists monthly and annual net income for each manual price option."
-      : "CSV download started. File lists base and buffered prices including and excluding VAT.";
+    "CSV download started. File includes dynamic target rows and any manual lesson-price rows with monthly/annual net income.";
   setTimeout(() => {
     controls.statusMessage.textContent = "";
   }, 2500);
@@ -5149,6 +5085,7 @@ tablesContainer.addEventListener("click", (event) => {
       rowIndex: Number(priceButton.dataset.row),
       columnIndex: Number(priceButton.dataset.column),
       variant: priceButton.dataset.variant === "base" ? "base" : "buffered",
+      priceSource: priceButton.dataset.priceSource === "manual" ? "manual" : "dynamic",
       manualIndex: Number.isFinite(manualIndex) && manualIndex >= 0 ? Math.trunc(manualIndex) : null,
     };
     openBreakdownDialog(context, priceButton);

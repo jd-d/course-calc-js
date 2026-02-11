@@ -26,6 +26,10 @@
 
 ## DONE
 
+- [x] Add an `Average monthly` acceptable-income basis (12-month average) alongside `Per active month`, with correct conversion and square-highlighting logic. (2026-02-11)
+- [x] Fix buffer tooltip overflow and show fixed-price buffer shortfall line (`Annual ... -X% buffer`) with matching acceptable-income highlight logic. (2026-02-11)
+- [x] Clarify buffer toggle semantics: buffer affects dynamic target price only; manual fixed prices stay fixed, with an explanatory tooltip in the table UI. (2026-02-11)
+- [x] Implement hybrid pricing input model so desired income and manual lesson prices can be active together (max 3 manual prices + dynamic block). (2026-02-11)
 - [x] Fix Desired Gross/Net Income fields becoming hard to overwrite in normal browser sessions — `change` handler no longer re-sets `dataset.editing` after blur (issue #6). (2026-02-10)
 - [x] Stop resetting acceptable income range max to 0 when left empty — `normalizePersistedInputValues` now preserves `null` instead of converting via `Number(null)=0`. (2026-02-10)
 - [x] Relax auto-correct for min/max lesson price — deferred render to `change` (blur) instead of every keystroke, with editing guards to prevent value rewriting mid-edit. (2026-02-10)

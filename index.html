@@ -227,13 +227,18 @@
               <div class="control-group acceptable-income-group">
                 <div class="acceptable-income-header">
                   <span class="label-text">Acceptable income range (optional)</span>
-                  <span class="sub-label" id="acceptable-income-current-basis">Monthly</span>
+                  <span class="sub-label" id="acceptable-income-current-basis">Per active month</span>
                 </div>
                 <div class="acceptable-income-basis" role="radiogroup" aria-label="Acceptable income period">
                   <label class="acceptable-income-basis__option" for="acceptable-income-basis-monthly">
                     <input type="radio" name="acceptable-income-basis" id="acceptable-income-basis-monthly"
                       value="monthly" checked />
-                    <span>Monthly</span>
+                    <span>Per active month</span>
+                  </label>
+                  <label class="acceptable-income-basis__option" for="acceptable-income-basis-average-monthly">
+                    <input type="radio" name="acceptable-income-basis" id="acceptable-income-basis-average-monthly"
+                      value="averageMonthly" />
+                    <span>Average monthly</span>
                   </label>
                   <label class="acceptable-income-basis__option" for="acceptable-income-basis-annual">
                     <input type="radio" name="acceptable-income-basis" id="acceptable-income-basis-annual"
@@ -655,14 +660,14 @@
                 <label for="lesson-cost">
                   <span class="label-text">Set a specific lesson price (incl. VAT)</span>
                   <span class="info-icon" tabindex="0" role="button" aria-expanded="false"
-                    aria-label="Set one or up to four comma-separated per-student lesson prices including VAT."
-                    data-tooltip="Set one or up to four comma-separated per-student lesson prices including VAT."><svg
+                    aria-label="Set one or up to three comma-separated per-student lesson prices including VAT."
+                    data-tooltip="Set one or up to three comma-separated per-student lesson prices including VAT."><svg
                       class="icon">
                       <use href="#icon-info"></use>
                     </svg></span>
                 </label>
                 <input type="text" id="lesson-cost" inputmode="text" autocomplete="off" placeholder="95, 105, 115" />
-                <p class="field-note">Use up to 4 comma-separated prices. Each price appears in its own mini box in the
+                <p class="field-note">Use up to 3 comma-separated prices. Each price appears in its own mini box in the
                   table cells.</p>
               </div>
               <div class="control control-panel control--lesson-price-range" role="group"

@@ -1563,12 +1563,15 @@ label {
   left: 50%;
   transform: translate(calc(-50% + var(--tooltip-shift, 0px)), 4px);
   width: clamp(180px, calc(100vw - 32px), 260px);
+  max-width: calc(100vw - 32px);
   padding: 10px 12px;
   border-radius: 12px;
   background: var(--tooltip-bg);
   color: var(--tooltip-color);
   font-size: 0.8rem;
   line-height: 1.35;
+  white-space: normal;
+  overflow-wrap: anywhere;
   box-shadow: var(--tooltip-shadow);
   opacity: 0;
   pointer-events: none;
@@ -1606,6 +1609,27 @@ label {
 .info-icon.is-active .info-icon__arrow {
   opacity: 1;
   transform: translate(calc(-50% + var(--tooltip-shift, 0px)), 0);
+}
+
+.info-icon.info-icon--tooltip-right .info-icon__tooltip {
+  left: auto;
+  right: 0;
+  transform: translate(0, 4px);
+}
+
+.info-icon.info-icon--tooltip-right .info-icon__arrow {
+  left: auto;
+  right: 6px;
+  transform: translate(0, 4px);
+}
+
+.info-icon.info-icon--tooltip-right:hover .info-icon__tooltip,
+.info-icon.info-icon--tooltip-right:focus-visible .info-icon__tooltip,
+.info-icon.info-icon--tooltip-right.is-active .info-icon__tooltip,
+.info-icon.info-icon--tooltip-right:hover .info-icon__arrow,
+.info-icon.info-icon--tooltip-right:focus-visible .info-icon__arrow,
+.info-icon.info-icon--tooltip-right.is-active .info-icon__arrow {
+  transform: translate(0, 0);
 }
 
 input[type="number"],
@@ -1935,6 +1959,11 @@ tbody td {
 .price-line .price-tertiary {
   font-size: 0.75rem;
   color: var(--text-muted);
+}
+
+.price-line .price-tertiary--buffer-impact {
+  color: var(--text-secondary);
+  font-weight: 600;
 }
 
 .price-line--mini {

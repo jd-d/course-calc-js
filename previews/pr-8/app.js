@@ -4133,11 +4133,25 @@ function buildPricingTable(data, symbol, bufferPercent, options = {}) {
     }
 
     const buttonVariant = variantOverride === "base" || variantOverride === "buffered" ? variantOverride : variant;
+    const normalizedPriceSource = priceSource === "manual" ? "manual" : "dynamic";
+    const shortfallMultiplier = Math.max(1 - bufferPercent / 100, 0);
+    let highlightMonthlyNet = priceData.monthlyNet;
+    let highlightAnnualNet = priceData.annualNet;
+    let manualBufferImpactMarkup = "";
+
+    if (normalizedPriceSource === "manual" && useBuffer) {
+      highlightMonthlyNet = Number.isFinite(priceData.monthlyNet) ? priceData.monthlyNet * shortfallMultiplier : null;
+      highlightAnnualNet = Number.isFinite(priceData.annualNet) ? priceData.annualNet * shortfallMultiplier : null;
+      const shortfallAnnualDisplay = formatIncomeForDisplay(highlightAnnualNet);
+      const shortfallLabel = incomeDisplayMode === "gross" ? "Annual gross" : "Annual net";
+      manualBufferImpactMarkup = `<span class="price-tertiary price-tertiary--buffer-impact">${shortfallLabel} -${formattedBuffer}% buffer ${shortfallAnnualDisplay}</span>`;
+    }
+
     const exVat = formatCurrency(symbol, priceData.priceExVat);
     const inclVat = formatCurrency(symbol, priceData.priceInclVat);
     const outOfRange = isPriceOutOfRange(priceData.priceInclVat);
     const highlightIncome = shouldHighlightIncome(
-      { monthlyNet: priceData.monthlyNet, annualNet: priceData.annualNet },
+      { monthlyNet: highlightMonthlyNet, annualNet: highlightAnnualNet },
       {
         acceptableIncome: acceptableIncomeRange,
         displayMode: incomeDisplayMode,
@@ -4163,7 +4177,6 @@ function buildPricingTable(data, symbol, bufferPercent, options = {}) {
     const hourlyMarkup = displayHourly ? `<span class="price-tertiary">${hourlyRateLabel} ${hourlyDisplay}</span>` : "";
     const annualMarkup = displayAnnual ? `<span class="price-secondary">${annualIncomeLabel} ${annualIncomeDisplay}</span>` : "";
     const manualIndexAttribute = Number.isInteger(manualIndex) ? ` data-manual-index="${manualIndex}"` : "";
-    const normalizedPriceSource = priceSource === "manual" ? "manual" : "dynamic";
 
     return `
           <button
@@ -4179,12 +4192,13 @@ function buildPricingTable(data, symbol, bufferPercent, options = {}) {
             ${exVatMarkup}
             ${hourlyMarkup}
             ${annualMarkup}
+            ${manualBufferImpactMarkup}
           </button>
         `;
   };
 
   const bufferTooltip =
-    "Applies only to the dynamic target-based suggested price. Manual prices are fixed and do not change when buffer is toggled.";
+    "Dynamic target-based suggested price is boosted by the buffer to compensate potential shortfall and help achieve desired income. Fixed prices do not change when buffer is on. Instead, each fixed-price square shows an annual shortfall line (Annual ... -X% buffer), and that shortfall value drives acceptable-income highlighting.";
   const toggleMarkup = `<div class="price-display-toggles">
             <label class="display-toggle">
               <input type="checkbox" class="display-toggle-checkbox" data-toggle="exVat" ${showExVat ? "checked" : ""} />
@@ -4201,7 +4215,7 @@ function buildPricingTable(data, symbol, bufferPercent, options = {}) {
             <label class="display-toggle display-toggle--buffer">
               <input type="checkbox" class="buffer-toggle-checkbox" ${useBuffer ? "checked" : ""} />
               <span>Include buffer in target price (+${formattedBuffer}%)</span>
-              <span class="info-icon" tabindex="0" role="button" aria-expanded="false"
+              <span class="info-icon info-icon--tooltip-right" tabindex="0" role="button" aria-expanded="false"
                 aria-label="${bufferTooltip}" data-tooltip="${bufferTooltip}"><svg class="icon">
                   <use href="#icon-info"></use>
                 </svg></span>

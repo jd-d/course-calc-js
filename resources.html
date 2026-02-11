@@ -1,11 +1,9 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8" />
-  <meta
-    name="viewport"
-    content="width=device-width, initial-scale=1.0, viewport-fit=cover"
-  />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="theme-color" content="#0a0c12" />
@@ -16,8 +14,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link
     href="https://fonts.googleapis.com/css2?family=Clash+Display:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap"
-    rel="stylesheet"
-  />
+    rel="stylesheet" />
   <title>Helpful Resources • Course Pricing Calculator</title>
   <script src="./pwa.js" defer></script>
   <style>
@@ -28,11 +25,9 @@
       --font-heading: "Clash Display", "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
       --card-bg: rgba(20, 24, 35, 0.85);
       --card-border: rgba(255, 255, 255, 0.08);
-      --card-border-gradient: linear-gradient(
-        135deg,
-        rgba(77, 163, 255, 0.6),
-        rgba(149, 114, 255, 0.45)
-      );
+      --card-border-gradient: linear-gradient(135deg,
+          rgba(77, 163, 255, 0.6),
+          rgba(149, 114, 255, 0.45));
       --card-shadow: 0 20px 40px rgba(0, 0, 0, 0.45);
       --accent: #4da3ff;
       --text-primary: #f5f7fb;
@@ -54,11 +49,9 @@
       --bg-gradient: radial-gradient(circle at top left, #eff4ff, #dde7ff 55%, #d4e0ff 100%);
       --card-bg: rgba(255, 255, 255, 0.95);
       --card-border: rgba(15, 23, 42, 0.08);
-      --card-border-gradient: linear-gradient(
-        135deg,
-        rgba(37, 99, 235, 0.35),
-        rgba(59, 130, 246, 0.15)
-      );
+      --card-border-gradient: linear-gradient(135deg,
+          rgba(37, 99, 235, 0.35),
+          rgba(59, 130, 246, 0.15));
       --card-shadow: 0 20px 40px rgba(15, 23, 42, 0.12);
       --accent: #2563eb;
       --text-primary: #111827;
@@ -99,9 +92,7 @@
       width: min(960px, 92vw);
       margin: 0 auto;
       padding: clamp(24px, 5vw, 48px) 0 64px;
-      padding-top: calc(
-        clamp(24px, 5vw, 48px) + env(safe-area-inset-top, 0px)
-      );
+      padding-top: calc(clamp(24px, 5vw, 48px) + env(safe-area-inset-top, 0px));
     }
 
     .top-nav {
@@ -224,6 +215,7 @@
     }
   </style>
 </head>
+
 <body data-theme="dark">
   <div class="page">
     <nav class="top-nav">
@@ -238,49 +230,34 @@
         <h2 id="resource-links-title">Cost benchmarks and guidance</h2>
         <ul class="resource-list">
           <li>
-            <a
-              class="resource-link"
-              href="https://www.kvk.nl/financiering/bereken-uw-uurtarief-als-zzper/"
-              target="_blank"
-              rel="noreferrer noopener"
-            >KVK on calculating your ZZP hourly rate</a>
-            <p class="resource-description">Overview of typical Dutch freelancer expenses and how to structure your tariff.</p>
+            <a class="resource-link" href="https://www.kvk.nl/financiering/bereken-uw-uurtarief-als-zzper/"
+              target="_blank" rel="noreferrer noopener">KVK on calculating your ZZP hourly rate</a>
+            <p class="resource-description">Overview of typical Dutch freelancer expenses and how to structure your
+              tariff.</p>
           </li>
           <li>
-            <a
-              class="resource-link"
-              href="https://www.independer.nl/pensioen/zelfstandig/pensioen-zzp.aspx"
-              target="_blank"
-              rel="noreferrer noopener"
-            >Independer pension comparison for ZZP’ers</a>
-            <p class="resource-description">Compare third pillar pension products tailored to independent professionals.</p>
+            <a class="resource-link" href="https://www.independer.nl/pensioen/zelfstandig/pensioen-zzp.aspx"
+              target="_blank" rel="noreferrer noopener">Independer pension comparison for ZZP’ers</a>
+            <p class="resource-description">Compare third pillar pension products tailored to independent professionals.
+            </p>
           </li>
           <li>
-            <a
-              class="resource-link"
-              href="https://www.zzp-nederland.nl/verzekeringen/arbeidsongeschiktheidsverzekering"
-              target="_blank"
-              rel="noreferrer noopener"
-            >ZZP Nederland on AOV insurance</a>
-            <p class="resource-description">Understand disability (AOV) coverage options, premiums, and tax treatment.</p>
+            <a class="resource-link" href="https://www.zzp-nederland.nl/verzekeringen/arbeidsongeschiktheidsverzekering"
+              target="_blank" rel="noreferrer noopener">ZZP Nederland on AOV insurance</a>
+            <p class="resource-description">Understand disability (AOV) coverage options, premiums, and tax treatment.
+            </p>
           </li>
           <li>
-            <a
-              class="resource-link"
-              href="https://www.zorgwijzer.nl/zorgverzekering/zzp"
-              target="_blank"
-              rel="noreferrer noopener"
-            >Zorgwijzer health insurance guide for ZZP’ers</a>
-            <p class="resource-description">Compare zorgverzekeringen with business deductions and self-employed benefits in mind.</p>
+            <a class="resource-link" href="https://www.zorgwijzer.nl/zorgverzekering/zzp" target="_blank"
+              rel="noreferrer noopener">Zorgwijzer health insurance guide for ZZP’ers</a>
+            <p class="resource-description">Compare zorgverzekeringen with business deductions and self-employed
+              benefits in mind.</p>
           </li>
           <li>
-            <a
-              class="resource-link"
-              href="https://github.com/jd-d/course-calc-js/blob/main/DATA_FORMAT.md"
-              target="_blank"
-              rel="noreferrer noopener"
-            >Course Pricing Calculator data portability format</a>
-            <p class="resource-description">Version history and field-by-field notes for the JSON export/import file so future updates stay compatible.</p>
+            <a class="resource-link" href="https://github.com/jd-d/course-calc-js/blob/main/DATA_FORMAT.md"
+              target="_blank" rel="noreferrer noopener">Course Pricing Calculator data portability format</a>
+            <p class="resource-description">Version history and field-by-field notes for the JSON export/import file so
+              future updates stay compatible.</p>
           </li>
         </ul>
       </section>
@@ -308,4 +285,5 @@
     })();
   </script>
 </body>
+
 </html>

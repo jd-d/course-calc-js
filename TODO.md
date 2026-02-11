@@ -1,14 +1,17 @@
 # TODO
 
 ## High Priority (Fixes)
+
 - [ ] Fix that green table cell backgrounds don't display when not in fixed lesson price mode any more.
 
 ## High Priority (UI/UX)
+
 - [ ] Revise the time-off and day-off logic, including related styling adjustments.
 - [ ] Add safety margin controls and reorganize the settings layout for clarity.
 - [ ] Split up index.html into smaller modules somehow.
 
 ## Medium Priority
+
 - [ ] Show additional table that (can) just show valid candidates based on lesson price range / income range. perhaps in format like: students | classes p wk | lesson price | price ex VAT | hourly net | lesson net | etc.
 - [ ] Add checkboxes under table to toggle the various bits of info in the cells on/off like: show VAT, show buffer, show base, show hourly; and a radio button or left-right switch for gross/net, OR have gross and net checkboxes too so both can be displayed.
 - [ ] In addition to the accountant's monthly report, have an even more detailed one that shows actual calculations like costs multiplied by the relevant multiplier, or tax % applied etc so user can verify calculations.
@@ -18,9 +21,11 @@
 - [ ] Add a button up top of the page similar to the other two buttons up there "Save as an app!" which when clicked pops up a succinct explainer per platform iPhone, Android (and whatever other platforms work) about what the steps are to save the page as a web app.
 
 ## Low Priority
+
 - [ ] Auto-select light or dark mode by time of day but add a lock icon next to it the user can press to keep it on either. They can still manually switch the switch (they don't need to actually press the lock first) but it won't auto change if the lock is locked.
 
 ## DONE
+
 - [x] Fix Desired Gross/Net Income fields becoming hard to overwrite in normal browser sessions — `change` handler no longer re-sets `dataset.editing` after blur (issue #6). (2026-02-10)
 - [x] Stop resetting acceptable income range max to 0 when left empty — `normalizePersistedInputValues` now preserves `null` instead of converting via `Number(null)=0`. (2026-02-10)
 - [x] Relax auto-correct for min/max lesson price — deferred render to `change` (blur) instead of every keystroke, with editing guards to prevent value rewriting mid-edit. (2026-02-10)

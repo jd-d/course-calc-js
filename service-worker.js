@@ -1,40 +1,40 @@
-const CACHE_VERSION = 'v10';
+const CACHE_VERSION = "v10";
 const CACHE_NAME = `course-pricing-calculator-${CACHE_VERSION}`;
 const PRECACHE_URLS = [
-  './',
-  './index.html',
-  './styles.css',
-  './app.js',
-  './resources.html',
-  './404.html',
-  './manifest.webmanifest',
-  './pwa.js',
-  './assets/favicon.png'
+  "./",
+  "./index.html",
+  "./styles.css",
+  "./app.js",
+  "./resources.html",
+  "./404.html",
+  "./manifest.webmanifest",
+  "./pwa.js",
+  "./assets/favicon.png",
 ];
 
-self.addEventListener('install', event => {
-  event.waitUntil(
-    caches.open(CACHE_NAME).then(cache => cache.addAll(PRECACHE_URLS))
-  );
+self.addEventListener("install", (event) => {
+  event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(PRECACHE_URLS)));
   self.skipWaiting();
 });
 
-self.addEventListener('activate', event => {
+self.addEventListener("activate", (event) => {
   event.waitUntil(
-    caches.keys().then(cacheNames =>
-      Promise.all(
-        cacheNames
-          .filter(cacheName => cacheName.startsWith('course-pricing-calculator-') && cacheName !== CACHE_NAME)
-          .map(cacheName => caches.delete(cacheName))
-      )
-    )
+    caches
+      .keys()
+      .then((cacheNames) =>
+        Promise.all(
+          cacheNames
+            .filter((cacheName) => cacheName.startsWith("course-pricing-calculator-") && cacheName !== CACHE_NAME)
+            .map((cacheName) => caches.delete(cacheName)),
+        ),
+      ),
   );
   self.clients.claim();
 });
 
 function createBypassCacheRequest(request) {
   try {
-    return new Request(request, { cache: 'no-cache' });
+    return new Request(request, { cache: "no-cache" });
   } catch (error) {
     return request;
   }
@@ -44,7 +44,7 @@ async function fetchAndCache(request) {
   const cache = await caches.open(CACHE_NAME);
   try {
     const response = await fetch(createBypassCacheRequest(request));
-    if (response && response.status === 200 && response.type === 'basic') {
+    if (response && response.status === 200 && response.type === "basic") {
       cache.put(request, response.clone());
     }
     return response;
@@ -53,8 +53,8 @@ async function fetchAndCache(request) {
     if (cachedResponse) {
       return cachedResponse;
     }
-    if (request.mode === 'navigate') {
-      const fallback = await cache.match('./index.html');
+    if (request.mode === "navigate") {
+      const fallback = await cache.match("./index.html");
       if (fallback) {
         return fallback;
       }
@@ -63,8 +63,8 @@ async function fetchAndCache(request) {
   }
 }
 
-self.addEventListener('fetch', event => {
-  if (event.request.method !== 'GET') {
+self.addEventListener("fetch", (event) => {
+  if (event.request.method !== "GET") {
     return;
   }
 
@@ -73,23 +73,23 @@ self.addEventListener('fetch', event => {
     return;
   }
 
-  if (event.request.mode === 'navigate') {
+  if (event.request.mode === "navigate") {
     event.respondWith(fetchAndCache(event.request));
     return;
   }
 
-  const networkFirstDestinations = new Set(['script', 'style', 'manifest']);
+  const networkFirstDestinations = new Set(["script", "style", "manifest"]);
   if (networkFirstDestinations.has(event.request.destination)) {
     event.respondWith(fetchAndCache(event.request));
     return;
   }
 
   event.respondWith(
-    caches.match(event.request).then(cached => {
+    caches.match(event.request).then((cached) => {
       if (cached) {
         return cached;
       }
       return fetchAndCache(event.request);
-    })
+    }),
   );
 });

@@ -37,8 +37,14 @@
 
   <div class="page">
     <nav class="top-nav">
-      <a href="./resources.html" class="top-link">Helpful Resources</a>
-      <a href="#" id="how-to-link" class="top-link">How To Use This Tool</a>
+      <div class="top-nav__start">
+        <button type="button" id="reset-saved-inputs" class="top-action">Restore default input values</button>
+        <button type="button" id="clear-all-app-data" class="top-action danger">Clear all app data</button>
+      </div>
+      <div class="top-nav__end">
+        <a href="./resources.html" class="top-link">Helpful Resources</a>
+        <a href="#" id="how-to-link" class="top-link">How To Use This Tool</a>
+      </div>
     </nav>
     <header>
       <div class="header-text">
@@ -86,9 +92,6 @@
                   <p class="persist-description">
                     Stores your latest calculator values in local storage so they're ready the next time you visit from this browser.
                   </p>
-                </div>
-                <div class="persist-controls__actions">
-                  <button type="button" id="reset-saved-inputs" class="secondary">Reset to defaults</button>
                 </div>
               </div>
               <div class="data-portability" role="group" aria-labelledby="data-portability-title">
@@ -898,7 +901,7 @@
           you type stays on this page. By default the only thing saved between visits is your light/dark mode preference
           (<code>course-pricing-theme</code>). If you turn on “Remember my inputs,” the calculator also stores your latest form values
           (<code>course-pricing-saved-inputs</code>) plus a small flag (<code>course-pricing-save-enabled</code>) in local storage. Switch it
-          off or press “Reset to defaults” to remove them instantly.
+          off or press “Restore default input values” to remove them instantly.
         </p>
         <p>
           When you export results, the CSV file is generated on your device: the app assembles the rows, wraps them in a
@@ -923,8 +926,7 @@
           <li>
             <strong>Inspect local storage.</strong> In the same panel, open “Local Storage,” select the site origin, and confirm
             you see <code>course-pricing-theme</code>, plus <code>course-pricing-saved-inputs</code> and
-            <code>course-pricing-save-enabled</code> only if you enabled “Remember my inputs.” Toggle it off or use “Reset to
-            defaults” to clear the extra entries.
+            <code>course-pricing-save-enabled</code> only if you enabled “Remember my inputs.” Toggle it off or use “Restore default input values” to clear the extra entries.
           </li>
           <li>
             <strong>Watch for network requests.</strong> Keep the Network tab open with “Preserve log” enabled as you adjust

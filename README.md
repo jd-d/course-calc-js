@@ -1,4 +1,5 @@
 # course-pricing-calculator
+
 Something for working out costs and income.
 
 ## Architecture
@@ -6,7 +7,7 @@ Something for working out costs and income.
 The project is gradually being modularized. Currently:
 
 | File | Purpose |
-|------|---------|
+| ------ | --------- |
 | `index.html` | Main application HTML structure (~1,050 lines) |
 | `styles.css` | All main application CSS (~2,050 lines) |
 | `app.js` | Main application JavaScript (~4,550 lines) |
@@ -20,14 +21,17 @@ The project is gradually being modularized. Currently:
 **Note:** `app.js` contains embedded CSS inside a JavaScript template literal for the print report feature. This is intentional — it generates a standalone HTML document for printing.
 
 ## Progressive Web App support
+
 The calculator now exposes a web app manifest and service worker so it can be installed on supported devices and keep working offline. Static assets and core pages are precached, and subsequent navigation attempts fall back to the cached calculator when the network is unavailable.
 
 The service worker cache key is versioned (`course-pricing-calculator-v*`) so new deployments can invalidate stale cached assets. Local persisted calculator inputs are also versioned and migrated forward automatically so existing saved field values are retained after storage upgrades.
 
 ## Data portability
+
 Use the **Export JSON** and **Import JSON** buttons in the Settings panel to move your saved setup between browsers. Exports include every input value, display toggle, and layout preference plus the active theme. The JSON schema is versioned in [`DATA_FORMAT.md`](./DATA_FORMAT.md) so future updates remain compatible with earlier downloads.
 
 ## Deployment options
+
 This repository publishes the static site defined in `index.html` to
 GitHub Pages using the **Pages (prod + previews)** workflow in
 `.github/workflows/pages.yml`. The workflow runs for pushes to `main`,
@@ -36,11 +40,13 @@ invocations. Each run builds the site once and uploads it as a shared
 `site-dist` artifact that every deployment job reuses.
 
 ### Production deployment (`main`)
+
 When commits land on `main`, the workflow deploys the contents of the
 `site-dist` artifact to the root of the `gh-pages` branch. This publishes
 the production site at the repository's standard GitHub Pages URL.
 
 ### Pull request preview deployments
+
 Pull requests against `main` trigger the same workflow. Their builds are
 published to `gh-pages` under `previews/pr-<number>/`, and the workflow
 comments the preview URL on the pull request so you can verify changes
@@ -49,6 +55,7 @@ so the workflow file must grant it `issues: write` permissions (and
 optionally `pull-requests: write`) to keep that automation functioning.
 
 ### Preview cleanup
+
 Preview directories are removed automatically when a pull request
 closes, courtesy of `.github/workflows/cleanup-preview.yml`.
 

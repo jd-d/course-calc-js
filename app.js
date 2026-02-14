@@ -1425,6 +1425,14 @@ function initializeDesiredIncomeDatasets() {
   });
 }
 
+function getCurrentTaxRate() {
+  if (!(controls.taxRate instanceof HTMLInputElement)) {
+    return 0.4;
+  }
+  const taxRatePercent = parseNumber(controls.taxRate.value, 40, { min: 0, max: 99.9 });
+  return taxRatePercent / 100;
+}
+
 function updateDesiredIncomeFromField(basis) {
   const field = getDesiredIncomeField(basis);
   if (!(field instanceof HTMLInputElement)) {
@@ -1675,6 +1683,68 @@ function showDataPortabilityStatus(message, duration = 3200) {
       }
     }, duration);
   }
+}
+
+function applyImportedSettings(payload) {
+  const { data } = payload;
+  if (!data || typeof data !== "object") {
+    throw new Error("The export file does not include any settings to apply.");
+  }
+  const { inputs, persistenceEnabled: importedPersistenceEnabled, theme } = data;
+  if (!inputs || typeof inputs !== "object") {
+    throw new Error("The export file is missing the saved inputs.");
+  }
+
+  applyInputValues(inputs);
+
+  const usePersistence = Boolean(importedPersistenceEnabled);
+  persistenceEnabled = usePersistence;
+  if (rememberInputsToggle) {
+    rememberInputsToggle.checked = usePersistence;
+  }
+  if (usePersistence) {
+    savePersistedInputs();
+  } else {
+    clearPersistedInputs();
+  }
+
+  if (theme === "light" || theme === "dark") {
+    respectSystemPreference = false;
+    applyThemePreference(theme, { save: true });
+  }
+
+  showDataPortabilityStatus("Settings imported. Everything has been restored from the JSON file.");
+}
+
+function handleImportFileSelection(event) {
+  const input = event.target;
+  if (!(input instanceof HTMLInputElement) || !input.files || !input.files.length) {
+    return;
+  }
+
+  const [file] = input.files;
+  input.value = "";
+  if (!file) {
+    return;
+  }
+
+  const reader = new FileReader();
+  reader.addEventListener("load", (loadEvent) => {
+    try {
+      const text = typeof loadEvent.target?.result === "string" ? loadEvent.target.result : "";
+      const payload = parseImportedPayload(text);
+      applyImportedSettings(payload);
+    } catch (error) {
+      console.error("Unable to import settings", error);
+      showDataPortabilityStatus(error.message || "Sorry, importing failed. Please check the file and try again.", 5000);
+    }
+  });
+
+  reader.addEventListener("error", () => {
+    showDataPortabilityStatus("Sorry, we could not read that file. Please try again.", 4000);
+  });
+
+  reader.readAsText(file);
 }
 
 function applyInputValues(values, options = {}) {

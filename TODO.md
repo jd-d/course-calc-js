@@ -1,5 +1,34 @@
 # TODO
 
+## Refactor — Phase 1: Foundation + Biggest Wins (~2,300 lines out of app.js)
+
+> Convert to ES Modules and extract the largest, most self-contained chunks.
+> After this phase app.js drops from ~5,159 → ~2,850 lines.
+
+- [ ] **Step 1 — Scaffold module entry point:** Change `<script src="app.js">` → `<script type="module" src="app.js">` in index.html. Update service-worker.js cache list for new files.
+- [ ] **Step 2 — Extract `js/utils.js` (~200 lines):** Formatting, number parsing, `escapeHtml()`, field error helpers, `parseManualLessonPrices()`, validation. Pure functions, zero DOM state — cleanest extraction. Every other module depends on these.
+- [ ] **Step 3 — Extract `js/storage.js` (~560 lines):** Save/load/migration/export/import subsystem. `saveInputs()`, `loadInputs()`, `clearAllData()`, `exportData()`, `importData()`, `PERSISTENCE_KEY_V2`.
+- [ ] **Step 4 — Extract `js/accounting-report.js` (~425 lines):** `buildAccountingReport()` + its ~140-line embedded CSS template. Takes calculation results, returns standalone HTML string.
+- [ ] **Step 5 — Extract `js/pricing-table.js` (~570 lines):** `buildPricingTable()` + `findBestPricingCombination()`. Takes inputs + calculation results, returns HTML.
+- [ ] **Step 6 — Extract `js/calculations.js` (~500 lines):** `getInputs()`, `computeNetIncomeFromRevenue()`, cost helpers, `shouldHighlightIncome()`, `buildCostsSummary()`. Refactor `getInputs()` to accept a `controls` object param instead of reading globals.
+
+## Refactor — Phase 2: UI Components (~1,100 lines out of app.js)
+
+> After this phase app.js drops to ~1,150 lines — just the glue layer.
+
+- [ ] **Step 7 — Extract `js/desired-income.js` (~600 lines):** Gross/net conversion, locked gross values, display refresh, editing guards. Most intertwined with DOM state — needs careful handling.
+- [ ] **Step 8 — Extract `js/dialogs.js` (~400 lines):** Dialog open/close/focus-trap for Readme, Accounting, and Breakdown modals.
+- [ ] **Step 9 — Extract `js/collapsible.js` (~275 lines):** Register/unregister/toggle/refresh collapsible section logic.
+
+## Refactor — Phase 3: Remaining Extractions + CSS Cleanup (~600 lines out of app.js)
+
+> After this phase app.js is ~820 lines — a proper entry point (DOM refs, render, events).
+
+- [ ] **Step 10 — Extract `js/theme.js` (~100 lines):** Dark/light toggle, localStorage persistence, system preference detection.
+- [ ] **Step 11 — Extract `js/tooltips.js` (~230 lines):** Info-icon tooltip positioning, rendering, open/close.
+- [ ] **Step 12 — Extract shared theme CSS → `css/theme.css`:** Pull CSS custom properties into a shared file. Replace ~250 lines of duplicated embedded `<style>` in resources.html and 404.html with `<link>`.
+- [ ] **Step 13 — (Optional) Split `styles.css` by component:** Dialog styles, pricing table, form controls, layout into `css/` subdirectory. Lower priority.
+
 ## High Priority (Fixes)
 
 - [ ] Fix that green table cell backgrounds don't display when not in fixed lesson price mode any more.
@@ -8,7 +37,6 @@
 
 - [ ] Revise the time-off and day-off logic, including related styling adjustments.
 - [ ] Add safety margin controls and reorganize the settings layout for clarity.
-- [ ] Split up index.html into smaller modules somehow.
 
 ## Medium Priority
 

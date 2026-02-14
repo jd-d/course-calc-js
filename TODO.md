@@ -5,8 +5,6 @@
 > Convert to ES Modules and extract the largest, most self-contained chunks.
 > After this phase app.js drops from ~5,159 → ~2,850 lines.
 
-- [ ] **Step 1 — Scaffold module entry point:** Change `<script src="app.js">` → `<script type="module" src="app.js">` in index.html. Update service-worker.js cache list for new files.
-- [ ] **Step 2 — Extract `js/utils.js` (~200 lines):** Formatting, number parsing, `escapeHtml()`, field error helpers, `parseManualLessonPrices()`, validation. Pure functions, zero DOM state — cleanest extraction. Every other module depends on these.
 - [ ] **Step 3 — Extract `js/storage.js` (~560 lines):** Save/load/migration/export/import subsystem. `saveInputs()`, `loadInputs()`, `clearAllData()`, `exportData()`, `importData()`, `PERSISTENCE_KEY_V2`.
 - [ ] **Step 4 — Extract `js/accounting-report.js` (~425 lines):** `buildAccountingReport()` + its ~140-line embedded CSS template. Takes calculation results, returns standalone HTML string.
 - [ ] **Step 5 — Extract `js/pricing-table.js` (~570 lines):** `buildPricingTable()` + `findBestPricingCombination()`. Takes inputs + calculation results, returns HTML.
@@ -53,6 +51,8 @@
 - [ ] Auto-select light or dark mode by time of day but add a lock icon next to it the user can press to keep it on either. They can still manually switch the switch (they don't need to actually press the lock first) but it won't auto change if the lock is locked.
 
 ## DONE
+- [x] **Step 1 - Scaffold module entry point:** switched `index.html` app script to module mode and updated service worker precache list. (2026-02-14)
+- [x] **Step 2 - Extract `js/utils.js`:** moved shared formatting, parsing, validation, escaping, and manual lesson price parsing helpers into `js/utils.js` and imported them from `app.js`. (2026-02-14)
 
 - [x] Add an `Average monthly` acceptable-income basis (12-month average) alongside `Per active month`, with correct conversion and square-highlighting logic. (2026-02-11)
 - [x] Fix buffer tooltip overflow and show fixed-price buffer shortfall line (`Annual ... -X% buffer`) with matching acceptable-income highlight logic. (2026-02-11)

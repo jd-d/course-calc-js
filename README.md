@@ -10,7 +10,8 @@ The project is gradually being modularized. Currently:
 | ------ | --------- |
 | `index.html` | Main application HTML structure (~1,050 lines) |
 | `styles.css` | All main application CSS (~2,050 lines) |
-| `app.js` | Main application JavaScript (~4,550 lines) |
+| `app.js` | Main application entry and glue logic (now imports shared helpers) |
+| `js/utils.js` | Shared utility helpers (formatting, parsing, validation, HTML escaping) |
 | `pwa.js` | Progressive Web App registration |
 | `service-worker.js` | Offline caching logic |
 | `resources.html` | Helpful resources page |

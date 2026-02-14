@@ -1,3 +1,19 @@
+import {
+  MAX_MANUAL_LESSON_PRICE_OPTIONS,
+  applyFieldValidationState,
+  escapeHtml,
+  formatCurrency,
+  formatCurrencyDetailed,
+  formatCurrencyOrDash,
+  formatFixed,
+  formatNumberValue,
+  parseManualLessonPrices,
+  parseNumber,
+  parseNumericValue,
+  updateInputValueIfAllowed,
+  validateNumberInput,
+} from "./js/utils.js";
+
 const breakdownDialog = document.getElementById("lesson-breakdown-dialog");
 const breakdownBackdrop = document.getElementById("lesson-breakdown-backdrop");
 const breakdownClose = document.getElementById("lesson-breakdown-close");
@@ -29,6 +45,8 @@ let previouslyFocusedElement = null;
 let breakdownTriggerElement = null;
 let activeBreakdownContext = null;
 let accountingTriggerElement = null;
+
+const numberFormatter = new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 });
 
 const controls = {
   targetNet: document.getElementById("target-net"),
@@ -884,8 +902,6 @@ if (themeToggleButton) {
   });
 }
 
-const numberFormatter = new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 });
-
 let latestResults = [];
 let includeBuffer = true;
 let showExVat = true;
@@ -1161,12 +1177,7 @@ const DEFAULT_MONTHS_OFF = 2;
 const DEFAULT_WEEKS_OFF_YEAR = (DEFAULT_MONTHS_OFF / MONTHS_PER_YEAR) * WEEKS_PER_YEAR;
 const FIELD_ERROR_CLASS = "field-error";
 const INFO_ICON_ERROR_CLASS = "info-icon--error";
-const ERROR_MESSAGE_INVALID = "please enter a valid number";
-const ERROR_MESSAGE_EMPTY = "this field is required";
 const ERROR_MESSAGE_RANGE_ORDER = "min cannot be greater than max";
-const MAX_MANUAL_LESSON_PRICE_OPTIONS = 3;
-const ERROR_MESSAGE_LESSON_PRICE_LIST_FORMAT = "use comma-separated prices (for example: 95, 105)";
-const ERROR_MESSAGE_LESSON_PRICE_LIST_MAX = `enter up to ${MAX_MANUAL_LESSON_PRICE_OPTIONS} prices`;
 const BASE_WORK_DAYS_PER_WEEK = 7;
 const TARGET_NET_DEFAULT = 50000;
 
@@ -1179,6 +1190,19 @@ let lastActiveMonths = MONTHS_PER_YEAR;
 let lastWorkingWeeks = WEEKS_PER_YEAR;
 let timeOffSyncSource = "months";
 let timeOffSyncActive = false;
+
+const fieldValidationOptions = {
+  fieldErrorClass: FIELD_ERROR_CLASS,
+  infoIconErrorClass: INFO_ICON_ERROR_CLASS,
+  onInfoIconUpdate: renderInfoIconTooltip,
+};
+
+function updateInputValueIfAllowedWithValidationClass(input, result, value, options = {}) {
+  updateInputValueIfAllowed(input, result, value, {
+    ...options,
+    fieldErrorClass: FIELD_ERROR_CLASS,
+  });
+}
 
 function getAcceptableIncomeBasisAnnualMultiplier(basis, activeMonths) {
   const normalizedMonths = Number.isFinite(activeMonths) && activeMonths > 0 ? activeMonths : MONTHS_PER_YEAR;
@@ -2336,232 +2360,6 @@ window.addEventListener("resize", () => {
   }
 });
 
-function formatFixed(value, fractionDigits = 1) {
-  const fixed = value.toFixed(fractionDigits);
-  return fixed.replace(/\.0+$/, "").replace(/(\.[0-9]*[1-9])0+$/, "$1");
-}
-
-function parseNumber(value, fallback = 0, { min = -Infinity, max = Infinity } = {}) {
-  if (value === null || value === undefined) {
-    return fallback;
-  }
-  const normalized = typeof value === "string" ? value.trim() : value;
-  if (normalized === "") {
-    return fallback;
-  }
-  const parsed = Number(normalized);
-  if (!Number.isFinite(parsed)) {
-    return fallback;
-  }
-  return Math.min(Math.max(parsed, min), max);
-}
-
-function parseNumericValue(value) {
-  if (value === null || value === undefined) {
-    return null;
-  }
-  const normalized = typeof value === "string" ? value.trim() : value;
-  if (normalized === "") {
-    return null;
-  }
-  const parsed = Number(normalized);
-  return Number.isFinite(parsed) ? parsed : null;
-}
-
-function validateNumberInput(input, { fallback = 0, min = -Infinity, max = Infinity, required = true } = {}) {
-  if (!(input instanceof HTMLInputElement)) {
-    return {
-      value: fallback,
-      valid: true,
-      empty: false,
-      message: null,
-    };
-  }
-  const raw = typeof input.value === "string" ? input.value.trim() : "";
-  if (raw === "") {
-    if (required) {
-      return { value: fallback, valid: false, empty: true, message: ERROR_MESSAGE_EMPTY };
-    }
-    return { value: fallback, valid: true, empty: true, message: null };
-  }
-  const parsed = Number(raw);
-  if (!Number.isFinite(parsed)) {
-    return { value: fallback, valid: false, empty: false, message: ERROR_MESSAGE_INVALID };
-  }
-  if (parsed < min || parsed > max) {
-    return { value: fallback, valid: false, empty: false, message: ERROR_MESSAGE_INVALID };
-  }
-  return { value: parsed, valid: true, empty: false, message: null };
-}
-
-function getFieldInfoIcon(input) {
-  if (!(input instanceof HTMLElement)) {
-    return null;
-  }
-  const control = input.closest(".control");
-  return control ? control.querySelector(".info-icon") : null;
-}
-
-function getFieldErrorMessageElement(input) {
-  if (!(input instanceof HTMLInputElement) || !input.id) {
-    return null;
-  }
-  const control = input.closest(".control");
-  if (!(control instanceof HTMLElement)) {
-    return null;
-  }
-  const errorId = `${input.id}-error`;
-  const existing = document.getElementById(errorId);
-  if (existing instanceof HTMLElement && control.contains(existing)) {
-    return existing;
-  }
-  const message = document.createElement("span");
-  message.id = errorId;
-  message.className = "visually-hidden";
-  control.appendChild(message);
-  return message;
-}
-
-function applyFieldValidationA11yState(input, message) {
-  if (!(input instanceof HTMLInputElement)) {
-    return;
-  }
-
-  const hasMessage = Boolean(message);
-  input.setAttribute("aria-invalid", hasMessage ? "true" : "false");
-
-  if (input.dataset.validationBaseDescribedby === undefined) {
-    input.dataset.validationBaseDescribedby = input.getAttribute("aria-describedby") || "";
-  }
-
-  const messageElement = getFieldErrorMessageElement(input);
-  if (messageElement) {
-    messageElement.textContent = hasMessage ? message : "";
-  }
-
-  const baseIds = (input.dataset.validationBaseDescribedby || "")
-    .split(/\s+/)
-    .map((id) => id.trim())
-    .filter(Boolean);
-
-  if (hasMessage && messageElement) {
-    if (!baseIds.includes(messageElement.id)) {
-      baseIds.push(messageElement.id);
-    }
-    input.setAttribute("aria-describedby", baseIds.join(" "));
-    input.setAttribute("aria-errormessage", messageElement.id);
-  } else {
-    if (baseIds.length) {
-      input.setAttribute("aria-describedby", baseIds.join(" "));
-    } else {
-      input.removeAttribute("aria-describedby");
-    }
-    input.removeAttribute("aria-errormessage");
-  }
-}
-
-function applyFieldValidationState(input, message) {
-  if (!(input instanceof HTMLInputElement)) {
-    return;
-  }
-  if (message) {
-    input.classList.add(FIELD_ERROR_CLASS);
-  } else {
-    input.classList.remove(FIELD_ERROR_CLASS);
-  }
-  applyFieldValidationA11yState(input, message);
-  const infoIcon = getFieldInfoIcon(input);
-  if (infoIcon) {
-    if (message) {
-      infoIcon.classList.add(INFO_ICON_ERROR_CLASS);
-      infoIcon.dataset.tooltipError = message;
-    } else {
-      infoIcon.classList.remove(INFO_ICON_ERROR_CLASS);
-      delete infoIcon.dataset.tooltipError;
-    }
-    renderInfoIconTooltip(infoIcon);
-  }
-}
-
-function updateInputValueIfAllowed(input, result, value, { allowEmpty = false, force = false } = {}) {
-  if (!(input instanceof HTMLInputElement)) {
-    return;
-  }
-  if (input.dataset.editing === "true") {
-    return;
-  }
-  if (!force && input.classList.contains(FIELD_ERROR_CLASS)) {
-    return;
-  }
-  if (result?.empty && allowEmpty) {
-    return;
-  }
-  input.value = value;
-}
-
-function getCurrentTaxRate() {
-  const percent = Math.min(Math.max(parseNumber(controls.taxRate?.value, 40), 0), 99.9);
-  return percent / 100;
-}
-
-function parseManualLessonPriceList(rawValue, { maxCount = MAX_MANUAL_LESSON_PRICE_OPTIONS } = {}) {
-  const raw = rawValue === null || rawValue === undefined ? "" : String(rawValue).trim();
-
-  if (!raw) {
-    return {
-      values: [],
-      valid: true,
-      empty: true,
-      message: null,
-    };
-  }
-
-  const rawTokens = raw.split(",");
-  const tokens = [];
-  for (const token of rawTokens) {
-    const normalizedToken = token.trim();
-    if (!normalizedToken) {
-      return {
-        values: [],
-        valid: false,
-        empty: false,
-        message: ERROR_MESSAGE_LESSON_PRICE_LIST_FORMAT,
-      };
-    }
-    tokens.push(normalizedToken);
-  }
-
-  if (tokens.length > maxCount) {
-    return {
-      values: [],
-      valid: false,
-      empty: false,
-      message: ERROR_MESSAGE_LESSON_PRICE_LIST_MAX,
-    };
-  }
-
-  const values = [];
-  for (const token of tokens) {
-    const parsed = Number(token);
-    if (!Number.isFinite(parsed) || parsed < 0) {
-      return {
-        values: [],
-        valid: false,
-        empty: false,
-        message: ERROR_MESSAGE_LESSON_PRICE_LIST_FORMAT,
-      };
-    }
-    values.push(parsed);
-  }
-
-  return {
-    values,
-    valid: true,
-    empty: false,
-    message: null,
-  };
-}
-
 function parseList(value) {
   if (!value) {
     return [];
@@ -2666,13 +2464,13 @@ function syncTimeOffFields(source) {
     const weeksValue = parseNumericValue(weeksInput.value);
     if (Number.isFinite(weeksValue) && weeksValue >= 0 && weeksValue <= WEEKS_PER_YEAR) {
       const monthsValue = (weeksValue / WEEKS_PER_YEAR) * MONTHS_PER_YEAR;
-      updateInputValueIfAllowed(monthsInput, null, formatFixed(monthsValue, 2), { force: true });
+      updateInputValueIfAllowedWithValidationClass(monthsInput, null, formatFixed(monthsValue, 2), { force: true });
     }
   } else {
     const monthsValue = parseNumericValue(monthsInput.value);
     if (Number.isFinite(monthsValue) && monthsValue >= 0 && monthsValue <= MONTHS_PER_YEAR) {
       const weeksValue = (monthsValue / MONTHS_PER_YEAR) * WEEKS_PER_YEAR;
-      updateInputValueIfAllowed(weeksInput, null, formatFixed(weeksValue, 2), { force: true });
+      updateInputValueIfAllowedWithValidationClass(weeksInput, null, formatFixed(weeksValue, 2), { force: true });
     }
   }
   timeOffSyncActive = false;
@@ -2750,12 +2548,12 @@ function getInputs() {
     const isActiveBasis = targetNetBasis === key;
     if (isActiveBasis && isInputEditing(field)) {
       // Keep active desired-income fields editable while typing; validate on commit.
-      applyFieldValidationState(field, null);
+      applyFieldValidationState(field, null, fieldValidationOptions);
       return;
     }
     const required = isActiveBasis;
     const state = validateNumberInput(field, { fallback: TARGET_NET_DEFAULT, min: 0, required });
-    applyFieldValidationState(field, state.message);
+    applyFieldValidationState(field, state.message, fieldValidationOptions);
   });
 
   const monthsOffState = validateNumberInput(controls.monthsOff, {
@@ -2783,10 +2581,10 @@ function getInputs() {
     required: true,
   });
 
-  applyFieldValidationState(controls.monthsOff, monthsOffState.message);
-  applyFieldValidationState(controls.weeksOffYear, weeksOffYearState.message);
-  applyFieldValidationState(controls.weeksOffCycle, weeksOffCycleState.message);
-  applyFieldValidationState(controls.daysOffWeek, daysOffWeekState.message);
+  applyFieldValidationState(controls.monthsOff, monthsOffState.message, fieldValidationOptions);
+  applyFieldValidationState(controls.weeksOffYear, weeksOffYearState.message, fieldValidationOptions);
+  applyFieldValidationState(controls.weeksOffCycle, weeksOffCycleState.message, fieldValidationOptions);
+  applyFieldValidationState(controls.daysOffWeek, daysOffWeekState.message, fieldValidationOptions);
 
   let monthsOff = monthsOffState.value;
   let weeksOffYear = weeksOffYearState.value;
@@ -2809,7 +2607,7 @@ function getInputs() {
     max: 99.9,
     required: true,
   });
-  applyFieldValidationState(controls.taxRate, taxRateState.message);
+  applyFieldValidationState(controls.taxRate, taxRateState.message, fieldValidationOptions);
 
   const taxRatePercent = taxRateState.value;
   const taxRate = taxRatePercent / 100;
@@ -2820,11 +2618,11 @@ function getInputs() {
   Object.values(fixedCostFields).forEach((fieldSet) => {
     if (fieldSet.monthly instanceof HTMLInputElement) {
       const state = validateNumberInput(fieldSet.monthly, { fallback: 0, min: 0, required: false });
-      applyFieldValidationState(fieldSet.monthly, state.message);
+      applyFieldValidationState(fieldSet.monthly, state.message, fieldValidationOptions);
     }
     if (fieldSet.annual instanceof HTMLInputElement) {
       const state = validateNumberInput(fieldSet.annual, { fallback: 0, min: 0, required: false });
-      applyFieldValidationState(fieldSet.annual, state.message);
+      applyFieldValidationState(fieldSet.annual, state.message, fieldValidationOptions);
     }
   });
 
@@ -2850,10 +2648,10 @@ function getInputs() {
     max: 99.9,
     required: true,
   });
-  applyFieldValidationState(controls.variableCostPerClass, variableCostPerClassState.message);
-  applyFieldValidationState(controls.variableCostPerStudent, variableCostPerStudentState.message);
-  applyFieldValidationState(controls.variableCostPerStudentMonthly, variableCostPerStudentMonthlyState.message);
-  applyFieldValidationState(controls.vatRate, vatRateState.message);
+  applyFieldValidationState(controls.variableCostPerClass, variableCostPerClassState.message, fieldValidationOptions);
+  applyFieldValidationState(controls.variableCostPerStudent, variableCostPerStudentState.message, fieldValidationOptions);
+  applyFieldValidationState(controls.variableCostPerStudentMonthly, variableCostPerStudentMonthlyState.message, fieldValidationOptions);
+  applyFieldValidationState(controls.vatRate, vatRateState.message, fieldValidationOptions);
 
   const variableCostPerClass = Math.max(variableCostPerClassState.value, 0);
   const variableCostPerStudent = Math.max(variableCostPerStudentState.value, 0);
@@ -2873,14 +2671,14 @@ function getInputs() {
     max: 99.9,
     required: true,
   });
-  applyFieldValidationState(controls.hoursPerLesson, hoursPerLessonState.message);
-  applyFieldValidationState(controls.buffer, bufferState.message);
+  applyFieldValidationState(controls.hoursPerLesson, hoursPerLessonState.message, fieldValidationOptions);
+  applyFieldValidationState(controls.buffer, bufferState.message, fieldValidationOptions);
 
   const hoursPerLesson = Math.max(hoursPerLessonState.value, 0.25);
   const bufferPercent = Math.max(bufferState.value, 0);
   const buffer = bufferPercent / 100;
   const currencySymbol = controls.currencySymbol.value.trim() || "€";
-  const lessonCostListState = parseManualLessonPriceList(controls.lessonCost?.value);
+  const lessonCostListState = parseManualLessonPrices(controls.lessonCost?.value);
   const lessonPriceMinState = validateNumberInput(controls.lessonPriceMin, {
     fallback: null,
     min: 0,
@@ -2891,9 +2689,9 @@ function getInputs() {
     min: 0,
     required: false,
   });
-  applyFieldValidationState(controls.lessonCost, lessonCostListState.message);
-  applyFieldValidationState(controls.lessonPriceMin, lessonPriceMinState.message);
-  applyFieldValidationState(controls.lessonPriceMax, lessonPriceMaxState.message);
+  applyFieldValidationState(controls.lessonCost, lessonCostListState.message, fieldValidationOptions);
+  applyFieldValidationState(controls.lessonPriceMin, lessonPriceMinState.message, fieldValidationOptions);
+  applyFieldValidationState(controls.lessonPriceMax, lessonPriceMaxState.message, fieldValidationOptions);
 
   const lessonCostInclVatOptions = lessonCostListState.valid ? lessonCostListState.values : [];
   const lessonCostInclVat = lessonCostInclVatOptions.length ? lessonCostInclVatOptions[0] : null;
@@ -2903,8 +2701,8 @@ function getInputs() {
   if (lessonPriceMin != null && lessonPriceMax != null && lessonPriceMin > lessonPriceMax) {
     const lessonPriceMinMessage = [lessonPriceMinState.message, ERROR_MESSAGE_RANGE_ORDER].filter(Boolean).join(" ");
     const lessonPriceMaxMessage = [lessonPriceMaxState.message, ERROR_MESSAGE_RANGE_ORDER].filter(Boolean).join(" ");
-    applyFieldValidationState(controls.lessonPriceMin, lessonPriceMinMessage);
-    applyFieldValidationState(controls.lessonPriceMax, lessonPriceMaxMessage);
+    applyFieldValidationState(controls.lessonPriceMin, lessonPriceMinMessage, fieldValidationOptions);
+    applyFieldValidationState(controls.lessonPriceMax, lessonPriceMaxMessage, fieldValidationOptions);
     lessonPriceMin = null;
     lessonPriceMax = null;
   }
@@ -2915,7 +2713,7 @@ function getInputs() {
       min: 0,
       required: false,
     });
-    applyFieldValidationState(controls.acceptableIncomeMin, state.message);
+    applyFieldValidationState(controls.acceptableIncomeMin, state.message, fieldValidationOptions);
   }
   if (controls.acceptableIncomeMax instanceof HTMLInputElement) {
     const state = validateNumberInput(controls.acceptableIncomeMax, {
@@ -2923,7 +2721,7 @@ function getInputs() {
       min: 0,
       required: false,
     });
-    applyFieldValidationState(controls.acceptableIncomeMax, state.message);
+    applyFieldValidationState(controls.acceptableIncomeMax, state.message, fieldValidationOptions);
   }
 
   const activeMonthShare = Math.min(Math.max((12 - monthsOff) / 12, 0), 1);
@@ -3007,36 +2805,36 @@ function getInputs() {
   refreshDesiredIncomeDisplay(derivedNetValues, taxRate);
   refreshAcceptableIncomeDisplay(taxRate);
 
-  updateInputValueIfAllowed(controls.taxRate, taxRateState, formatFixed(taxRate * 100, 1));
+  updateInputValueIfAllowedWithValidationClass(controls.taxRate, taxRateState, formatFixed(taxRate * 100, 1));
   if (controls.fixedCosts instanceof HTMLInputElement) {
     controls.fixedCosts.value = formatFixed(fixedCosts, 2);
   }
-  updateInputValueIfAllowed(controls.variableCostPerClass, variableCostPerClassState, formatFixed(variableCostPerClass, 2));
-  updateInputValueIfAllowed(controls.variableCostPerStudent, variableCostPerStudentState, formatFixed(variableCostPerStudent, 2));
-  updateInputValueIfAllowed(
+  updateInputValueIfAllowedWithValidationClass(controls.variableCostPerClass, variableCostPerClassState, formatFixed(variableCostPerClass, 2));
+  updateInputValueIfAllowedWithValidationClass(controls.variableCostPerStudent, variableCostPerStudentState, formatFixed(variableCostPerStudent, 2));
+  updateInputValueIfAllowedWithValidationClass(
     controls.variableCostPerStudentMonthly,
     variableCostPerStudentMonthlyState,
     formatFixed(variableCostPerStudentMonthly, 2),
   );
-  updateInputValueIfAllowed(controls.vatRate, vatRateState, formatFixed(vatRate * 100, 1));
-  updateInputValueIfAllowed(controls.hoursPerLesson, hoursPerLessonState, formatFixed(hoursPerLesson, 2));
-  updateInputValueIfAllowed(
+  updateInputValueIfAllowedWithValidationClass(controls.vatRate, vatRateState, formatFixed(vatRate * 100, 1));
+  updateInputValueIfAllowedWithValidationClass(controls.hoursPerLesson, hoursPerLessonState, formatFixed(hoursPerLesson, 2));
+  updateInputValueIfAllowedWithValidationClass(
     controls.lessonPriceMin,
     lessonPriceMinState,
     lessonPriceMin == null || !Number.isFinite(lessonPriceMin) ? "" : formatFixed(lessonPriceMin, 2),
     { allowEmpty: true },
   );
-  updateInputValueIfAllowed(
+  updateInputValueIfAllowedWithValidationClass(
     controls.lessonPriceMax,
     lessonPriceMaxState,
     lessonPriceMax == null || !Number.isFinite(lessonPriceMax) ? "" : formatFixed(lessonPriceMax, 2),
     { allowEmpty: true },
   );
-  updateInputValueIfAllowed(controls.monthsOff, monthsOffState, formatFixed(monthsOff, 2));
-  updateInputValueIfAllowed(controls.weeksOffYear, weeksOffYearState, formatFixed(weeksOffYear, 2));
-  updateInputValueIfAllowed(controls.weeksOffCycle, weeksOffCycleState, formatFixed(weeksOffPerCycle, 2));
-  updateInputValueIfAllowed(controls.daysOffWeek, daysOffWeekState, formatFixed(daysOffPerWeek, 2));
-  updateInputValueIfAllowed(controls.buffer, bufferState, formatFixed(buffer * 100, 1));
+  updateInputValueIfAllowedWithValidationClass(controls.monthsOff, monthsOffState, formatFixed(monthsOff, 2));
+  updateInputValueIfAllowedWithValidationClass(controls.weeksOffYear, weeksOffYearState, formatFixed(weeksOffYear, 2));
+  updateInputValueIfAllowedWithValidationClass(controls.weeksOffCycle, weeksOffCycleState, formatFixed(weeksOffPerCycle, 2));
+  updateInputValueIfAllowedWithValidationClass(controls.daysOffWeek, daysOffWeekState, formatFixed(daysOffPerWeek, 2));
+  updateInputValueIfAllowedWithValidationClass(controls.buffer, bufferState, formatFixed(buffer * 100, 1));
   if (controls.currencySymbol instanceof HTMLInputElement && controls.currencySymbol.dataset.editing !== "true") {
     controls.currencySymbol.value = currencySymbol;
   }
@@ -3076,48 +2874,6 @@ function getInputs() {
     activeMonthShare,
     weeksShare,
   };
-}
-
-function formatCurrency(symbol, value) {
-  if (!Number.isFinite(value)) {
-    return `${symbol}0`;
-  }
-  const rounded = Math.round(value);
-  const formatted = numberFormatter.format(Math.abs(rounded));
-  return rounded < 0 ? `-${symbol}${formatted}` : `${symbol}${formatted}`;
-}
-
-function formatCurrencyDetailed(symbol, value, digits = 2) {
-  if (!Number.isFinite(value)) {
-    return `${symbol}0.00`;
-  }
-  const absolute = Math.abs(value);
-  const formatted = absolute.toLocaleString(undefined, {
-    minimumFractionDigits: digits,
-    maximumFractionDigits: digits,
-  });
-  return value < 0 ? `-${symbol}${formatted}` : `${symbol}${formatted}`;
-}
-
-function formatCurrencyOrDash(symbol, value, digits = 2) {
-  return Number.isFinite(value) ? formatCurrencyDetailed(symbol, value, digits) : "—";
-}
-
-function formatNumberValue(value, maximumFractionDigits = 2) {
-  if (!Number.isFinite(value)) {
-    return "—";
-  }
-  return value.toLocaleString(undefined, {
-    minimumFractionDigits: 0,
-    maximumFractionDigits,
-  });
-}
-
-function escapeHtml(value) {
-  if (value === null || value === undefined) {
-    return "";
-  }
-  return String(value).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 }
 
 function cloneInputs(inputs) {

@@ -1,10 +1,11 @@
-const CACHE_VERSION = "v10";
+const CACHE_VERSION = "v11";
 const CACHE_NAME = `course-pricing-calculator-${CACHE_VERSION}`;
 const PRECACHE_URLS = [
   "./",
   "./index.html",
   "./styles.css",
   "./app.js",
+  "./js/utils.js",
   "./resources.html",
   "./404.html",
   "./manifest.webmanifest",

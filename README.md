@@ -12,6 +12,7 @@ The project is gradually being modularized. Currently:
 | `styles.css` | All main application CSS (~2,050 lines) |
 | `app.js` | Main application entry and glue logic (now imports shared helpers) |
 | `js/utils.js` | Shared utility helpers (formatting, parsing, validation, HTML escaping) |
+| `js/storage.js` | Persistence and data-portability logic (save/load/migrate/export/import) |
 | `pwa.js` | Progressive Web App registration |
 | `service-worker.js` | Offline caching logic |
 | `resources.html` | Helpful resources page |

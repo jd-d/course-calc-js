@@ -1,4 +1,16 @@
 import {
+  DATA_PORTABILITY_VERSION,
+  buildDataPortabilityFilename,
+  buildDataPortabilityPayload,
+  clearPersistedInputs,
+  migrateLegacyPersistenceIfNeeded,
+  parseImportedPayload,
+  readPersistenceEnabled,
+  readPersistedValues,
+  savePersistedInputs as savePersistedInputsToStorage,
+  triggerJsonDownload,
+} from "./js/storage.js";
+import {
   MAX_MANUAL_LESSON_PRICE_OPTIONS,
   applyFieldValidationState,
   escapeHtml,
@@ -1548,14 +1560,6 @@ controls.fixedCostFields = fixedCostFields;
 
 const rememberInputsToggle = controls.rememberInputs instanceof HTMLInputElement ? controls.rememberInputs : null;
 const resetSavedInputsButton = controls.resetSavedInputs instanceof HTMLButtonElement ? controls.resetSavedInputs : null;
-const PERSISTENCE_SCHEMA_VERSION = "2";
-const LEGACY_PERSISTENCE_ENABLED_KEY = "course-pricing-save-enabled";
-const LEGACY_PERSISTENCE_VALUES_KEY = "course-pricing-saved-inputs";
-const PERSISTENCE_ENABLED_KEY = `${LEGACY_PERSISTENCE_ENABLED_KEY}-v${PERSISTENCE_SCHEMA_VERSION}`;
-const PERSISTENCE_VALUES_KEY = `${LEGACY_PERSISTENCE_VALUES_KEY}-v${PERSISTENCE_SCHEMA_VERSION}`;
-const PERSISTENCE_SCHEMA_META_KEY = "__persistenceSchemaVersion";
-const DATA_PORTABILITY_FORMAT = "course-pricing-calculator";
-const DATA_PORTABILITY_VERSION = "1.0.0";
 const dataPortabilityVersionElement = document.getElementById("data-portability-version");
 if (dataPortabilityVersionElement) {
   dataPortabilityVersionElement.textContent = DATA_PORTABILITY_VERSION;
@@ -1569,101 +1573,46 @@ updateDesiredIncomeTitle();
 updateDesiredIncomeLabels();
 updateAcceptableIncomeBasisLabel();
 
-function normalizeLessonCostPersistedValue(value) {
-  if (typeof value === "string") {
-    return value;
-  }
-  if (typeof value === "number" && Number.isFinite(value)) {
-    return String(value);
-  }
-  if (Array.isArray(value)) {
-    const normalizedValues = value
-      .map((entry) => Number(entry))
-      .filter((entry) => Number.isFinite(entry) && entry >= 0)
-      .slice(0, MAX_MANUAL_LESSON_PRICE_OPTIONS)
-      .map((entry) => formatFixed(entry, 2));
-    return normalizedValues.join(", ");
-  }
-  return "";
+function getPersistenceNormalizeOptions() {
+  return {
+    desiredIncomeFieldKeys: Object.keys(desiredIncomeFieldMap),
+    persistedControlsPanelCollapsedKey: PERSISTED_CONTROLS_PANEL_COLLAPSED_KEY,
+    persistedAcceptableIncomeMinKey: PERSISTED_ACCEPTABLE_INCOME_MIN_KEY,
+    persistedAcceptableIncomeMaxKey: PERSISTED_ACCEPTABLE_INCOME_MAX_KEY,
+  };
 }
 
-function normalizePersistedInputValues(values) {
-  if (!values || typeof values !== "object") {
-    return null;
+function savePersistedInputs() {
+  if (!persistenceEnabled) {
+    return;
   }
-
-  const normalized = { ...values };
-  normalized[PERSISTENCE_SCHEMA_META_KEY] = PERSISTENCE_SCHEMA_VERSION;
-
-  if (Object.prototype.hasOwnProperty.call(normalized, PERSISTED_CONTROLS_PANEL_COLLAPSED_KEY)) {
-    normalized[PERSISTED_CONTROLS_PANEL_COLLAPSED_KEY] = Boolean(normalized[PERSISTED_CONTROLS_PANEL_COLLAPSED_KEY]);
-  }
-
-  if (Object.prototype.hasOwnProperty.call(normalized, "lesson-cost")) {
-    normalized["lesson-cost"] = normalizeLessonCostPersistedValue(normalized["lesson-cost"]);
-  }
-
-  Object.keys(desiredIncomeFieldMap).forEach((key) => {
-    const netKey = `__desiredIncomeNet_${key}`;
-    if (normalized[netKey] === null || typeof normalized[netKey] === "undefined") {
-      normalized[netKey] = null;
-    } else {
-      const parsed = Number(normalized[netKey]);
-      normalized[netKey] = Number.isFinite(parsed) ? Math.max(parsed, 0) : null;
-    }
+  const saved = savePersistedInputsToStorage(captureInputValues(), {
+    normalizeOptions: getPersistenceNormalizeOptions(),
   });
-
-  const acceptableMin = Number(normalized[PERSISTED_ACCEPTABLE_INCOME_MIN_KEY]);
-  if (Number.isFinite(acceptableMin)) {
-    normalized[PERSISTED_ACCEPTABLE_INCOME_MIN_KEY] = Math.max(acceptableMin, 0);
-  } else if (
-    normalized[PERSISTED_ACCEPTABLE_INCOME_MIN_KEY] !== null &&
-    typeof normalized[PERSISTED_ACCEPTABLE_INCOME_MIN_KEY] !== "undefined"
-  ) {
-    normalized[PERSISTED_ACCEPTABLE_INCOME_MIN_KEY] = null;
+  if (!saved) {
+    persistenceEnabled = false;
+    if (rememberInputsToggle) {
+      rememberInputsToggle.checked = false;
+    }
   }
-
-  const acceptableMax = Number(normalized[PERSISTED_ACCEPTABLE_INCOME_MAX_KEY]);
-  if (Number.isFinite(acceptableMax)) {
-    normalized[PERSISTED_ACCEPTABLE_INCOME_MAX_KEY] = Math.max(acceptableMax, 0);
-  } else if (
-    normalized[PERSISTED_ACCEPTABLE_INCOME_MAX_KEY] !== null &&
-    typeof normalized[PERSISTED_ACCEPTABLE_INCOME_MAX_KEY] !== "undefined"
-  ) {
-    normalized[PERSISTED_ACCEPTABLE_INCOME_MAX_KEY] = null;
-  }
-
-  return normalized;
 }
 
-function migrateLegacyPersistenceIfNeeded() {
+function getThemeForExport() {
+  return document.body.dataset.theme === "light" ? "light" : "dark";
+}
+
+function handleExportSettings() {
   try {
-    const hasVersionedEnabled = localStorage.getItem(PERSISTENCE_ENABLED_KEY);
-    const hasVersionedValues = localStorage.getItem(PERSISTENCE_VALUES_KEY);
-    if (hasVersionedEnabled !== null || hasVersionedValues !== null) {
-      return;
-    }
-
-    const legacyEnabled = localStorage.getItem(LEGACY_PERSISTENCE_ENABLED_KEY);
-    const legacyValuesRaw = localStorage.getItem(LEGACY_PERSISTENCE_VALUES_KEY);
-
-    if (legacyValuesRaw) {
-      try {
-        const parsedLegacyValues = JSON.parse(legacyValuesRaw);
-        const normalizedLegacyValues = normalizePersistedInputValues(parsedLegacyValues);
-        if (normalizedLegacyValues) {
-          localStorage.setItem(PERSISTENCE_VALUES_KEY, JSON.stringify(normalizedLegacyValues));
-        }
-      } catch (error) {
-        // Ignore malformed legacy data.
-      }
-    }
-
-    if (legacyEnabled === "true" || legacyEnabled === "false") {
-      localStorage.setItem(PERSISTENCE_ENABLED_KEY, legacyEnabled);
-    }
+    const payload = buildDataPortabilityPayload({
+      captureInputValues,
+      persistenceEnabled,
+      theme: getThemeForExport(),
+    });
+    triggerJsonDownload(buildDataPortabilityFilename(), payload);
+    showDataPortabilityStatus("JSON export started. Keep the file safe to import your setup later.");
   } catch (error) {
-    // Ignore storage errors.
+    console.error("Unable to export settings", error);
+    showDataPortabilityStatus("Sorry, exporting the JSON file failed. Please try again.", 4000);
   }
 }
 
@@ -1706,7 +1655,6 @@ function captureInputValues(inputs = getPersistableInputs()) {
     const netValue = readDesiredIncomeNet(key, null);
     values[`__desiredIncomeNet_${key}`] = Number.isFinite(netValue) ? netValue : null;
   });
-  values[PERSISTENCE_SCHEMA_META_KEY] = PERSISTENCE_SCHEMA_VERSION;
   return values;
 }
 
@@ -1726,177 +1674,6 @@ function showDataPortabilityStatus(message, duration = 3200) {
         controls.statusMessage.textContent = "";
       }
     }, duration);
-  }
-}
-
-function getThemeForExport() {
-  return document.body.dataset.theme === "light" ? "light" : "dark";
-}
-
-function buildDataPortabilityPayload() {
-  return {
-    format: DATA_PORTABILITY_FORMAT,
-    version: DATA_PORTABILITY_VERSION,
-    exportedAt: new Date().toISOString(),
-    data: {
-      inputs: captureInputValues(),
-      persistenceEnabled,
-      theme: getThemeForExport(),
-    },
-  };
-}
-
-function triggerJsonDownload(filename, payload) {
-  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = filename;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
-}
-
-function handleExportSettings() {
-  try {
-    const payload = buildDataPortabilityPayload();
-    const timestamp = new Date().toISOString().replace(/[:]/g, "").split(".")[0];
-    const filename = `course-pricing-settings-${timestamp}.json`;
-    triggerJsonDownload(filename, payload);
-    showDataPortabilityStatus("JSON export started. Keep the file safe to import your setup later.");
-  } catch (error) {
-    console.error("Unable to export settings", error);
-    showDataPortabilityStatus("Sorry, exporting the JSON file failed. Please try again.", 4000);
-  }
-}
-
-function parseImportedPayload(text) {
-  let parsed;
-  try {
-    parsed = JSON.parse(text);
-  } catch (error) {
-    throw new Error("The selected file was not valid JSON.");
-  }
-  if (!parsed || typeof parsed !== "object") {
-    throw new Error("The selected file does not contain the expected data.");
-  }
-  if (parsed.format !== DATA_PORTABILITY_FORMAT) {
-    throw new Error("This file is not a Course Pricing Calculator export.");
-  }
-  if (typeof parsed.version !== "string") {
-    throw new Error("The export file is missing its version number.");
-  }
-  if (parsed.version !== DATA_PORTABILITY_VERSION) {
-    throw new Error(`Unsupported export version: ${parsed.version}.`);
-  }
-  return parsed;
-}
-
-function applyImportedSettings(payload) {
-  const { data } = payload;
-  if (!data || typeof data !== "object") {
-    throw new Error("The export file does not include any settings to apply.");
-  }
-  const { inputs, persistenceEnabled: importedPersistenceEnabled, theme } = data;
-  if (!inputs || typeof inputs !== "object") {
-    throw new Error("The export file is missing the saved inputs.");
-  }
-  applyInputValues(inputs);
-  const usePersistence = Boolean(importedPersistenceEnabled);
-  persistenceEnabled = usePersistence;
-  if (rememberInputsToggle) {
-    rememberInputsToggle.checked = usePersistence;
-  }
-  if (usePersistence) {
-    savePersistedInputs();
-  } else {
-    clearPersistedInputs();
-  }
-  if (theme === "light" || theme === "dark") {
-    respectSystemPreference = false;
-    applyThemePreference(theme, { save: true });
-  }
-  showDataPortabilityStatus("Settings imported. Everything has been restored from the JSON file.");
-}
-
-function handleImportFileSelection(event) {
-  const input = event.target;
-  if (!(input instanceof HTMLInputElement) || !input.files || !input.files.length) {
-    return;
-  }
-  const [file] = input.files;
-  input.value = "";
-  if (!file) {
-    return;
-  }
-  const reader = new FileReader();
-  reader.addEventListener("load", (loadEvent) => {
-    try {
-      const text = typeof loadEvent.target?.result === "string" ? loadEvent.target.result : "";
-      const payload = parseImportedPayload(text);
-      applyImportedSettings(payload);
-    } catch (error) {
-      console.error("Unable to import settings", error);
-      showDataPortabilityStatus(error.message || "Sorry, importing failed. Please check the file and try again.", 5000);
-    }
-  });
-  reader.addEventListener("error", () => {
-    showDataPortabilityStatus("Sorry, we could not read that file. Please try again.", 4000);
-  });
-  reader.readAsText(file);
-}
-
-function readPersistenceEnabled() {
-  try {
-    const current = localStorage.getItem(PERSISTENCE_ENABLED_KEY);
-    if (current === "true" || current === "false") {
-      return current === "true";
-    }
-    return localStorage.getItem(LEGACY_PERSISTENCE_ENABLED_KEY) === "true";
-  } catch (error) {
-    return false;
-  }
-}
-
-function readPersistedValues() {
-  try {
-    const parseAndNormalize = (raw) => {
-      if (!raw) {
-        return null;
-      }
-      const parsed = JSON.parse(raw);
-      if (parsed && typeof parsed === "object") {
-        return normalizePersistedInputValues(parsed);
-      }
-      return null;
-    };
-
-    const currentRaw = localStorage.getItem(PERSISTENCE_VALUES_KEY);
-    const currentValues = parseAndNormalize(currentRaw);
-    if (currentValues) {
-      return currentValues;
-    }
-
-    const legacyRaw = localStorage.getItem(LEGACY_PERSISTENCE_VALUES_KEY);
-    const legacyValues = parseAndNormalize(legacyRaw);
-    if (legacyValues) {
-      return legacyValues;
-    }
-  } catch (error) {
-    // Ignore parsing errors
-  }
-  return null;
-}
-
-function clearPersistedInputs() {
-  try {
-    localStorage.removeItem(PERSISTENCE_VALUES_KEY);
-    localStorage.removeItem(PERSISTENCE_ENABLED_KEY);
-    localStorage.removeItem(LEGACY_PERSISTENCE_VALUES_KEY);
-    localStorage.removeItem(LEGACY_PERSISTENCE_ENABLED_KEY);
-  } catch (error) {
-    // Ignore storage errors
   }
 }
 
@@ -1997,27 +1774,6 @@ function applyInputValues(values, options = {}) {
   }
 }
 
-function savePersistedInputs() {
-  if (!persistenceEnabled) {
-    return;
-  }
-  try {
-    const values = normalizePersistedInputValues(captureInputValues());
-    if (!values) {
-      return;
-    }
-    localStorage.setItem(PERSISTENCE_VALUES_KEY, JSON.stringify(values));
-    localStorage.setItem(PERSISTENCE_ENABLED_KEY, "true");
-    localStorage.removeItem(LEGACY_PERSISTENCE_VALUES_KEY);
-    localStorage.removeItem(LEGACY_PERSISTENCE_ENABLED_KEY);
-  } catch (error) {
-    persistenceEnabled = false;
-    if (rememberInputsToggle) {
-      rememberInputsToggle.checked = false;
-    }
-  }
-}
-
 function handlePersistableInputMutation(event) {
   if (event && event.target instanceof HTMLInputElement) {
     const nextBasis = TARGET_NET_BASIS_BY_INPUT_ID[event.target.id];
@@ -2031,7 +1787,7 @@ function handlePersistableInputMutation(event) {
 }
 
 function initializePersistence() {
-  migrateLegacyPersistenceIfNeeded();
+  migrateLegacyPersistenceIfNeeded({ normalizeOptions: getPersistenceNormalizeOptions() });
 
   if (rememberInputsToggle) {
     rememberInputsToggle.checked = readPersistenceEnabled();
@@ -2040,7 +1796,9 @@ function initializePersistence() {
     persistenceEnabled = false;
   }
 
-  const storedValues = persistenceEnabled ? readPersistedValues() : null;
+  const storedValues = persistenceEnabled
+    ? readPersistedValues({ normalizeOptions: getPersistenceNormalizeOptions() })
+    : null;
   if (storedValues) {
     applyInputValues(storedValues, { skipRender: true });
   }

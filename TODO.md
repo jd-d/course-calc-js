@@ -5,8 +5,6 @@
 > Convert to ES Modules and extract the largest, most self-contained chunks.
 > After this phase app.js drops from ~5,159 → ~2,850 lines.
 
-- [ ] **Step 4 — Extract `js/accounting-report.js` (~425 lines):** `buildAccountingReport()` + its ~140-line embedded CSS template. Takes calculation results, returns standalone HTML string.
-- [ ] **Step 5 — Extract `js/pricing-table.js` (~570 lines):** `buildPricingTable()` + `findBestPricingCombination()`. Takes inputs + calculation results, returns HTML.
 - [ ] **Step 6 — Extract `js/calculations.js` (~500 lines):** `getInputs()`, `computeNetIncomeFromRevenue()`, cost helpers, `shouldHighlightIncome()`, `buildCostsSummary()`. Refactor `getInputs()` to accept a `controls` object param instead of reading globals.
 
 ## Refactor — Phase 2: UI Components (~1,100 lines out of app.js)
@@ -50,6 +48,8 @@
 - [ ] Auto-select light or dark mode by time of day but add a lock icon next to it the user can press to keep it on either. They can still manually switch the switch (they don't need to actually press the lock first) but it won't auto change if the lock is locked.
 
 ## DONE
+- [x] **Step 4 — Extract `js/accounting-report.js` (~425 lines):** `buildAccountingReport()` + its ~140-line embedded CSS template. Takes calculation results, returns standalone HTML string. (2026-02-15)
+- [x] **Step 5 — Extract `js/pricing-table.js` (~570 lines):** `buildPricingTable()` + `findBestPricingCombination()`. Takes inputs + calculation results, returns HTML. (2026-02-15)
 - [x] **Step 3 - Extract `js/storage.js`:** moved persistence/data-portability logic into `js/storage.js`, wired `app.js` imports, and updated service-worker precache. (2026-02-14)
 - [x] **Step 1 - Scaffold module entry point:** switched `index.html` app script to module mode and updated service worker precache list. (2026-02-14)
 - [x] **Step 2 - Extract `js/utils.js`:** moved shared formatting, parsing, validation, escaping, and manual lesson price parsing helpers into `js/utils.js` and imported them from `app.js`. (2026-02-14)

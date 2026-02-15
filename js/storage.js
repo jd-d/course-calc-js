@@ -1,4 +1,4 @@
-import { MAX_MANUAL_LESSON_PRICE_OPTIONS, formatFixed, parseManualLessonPrices, parseNumber } from "./utils.js";
+import { MAX_MANUAL_LESSON_PRICE_OPTIONS, formatFixed, parseNumber } from "./utils.js";
 
 const PERSISTENCE_SCHEMA_VERSION = "2";
 const LEGACY_PERSISTENCE_ENABLED_KEY = "course-pricing-save-enabled";
@@ -18,14 +18,12 @@ function normalizeLessonCostPersistedValue(value) {
     return String(value);
   }
   if (Array.isArray(value)) {
-    const joined = value.map((entry) => formatFixed(parseNumber(entry, 0, { min: 0 }), 2)).join(", ");
-    const parsedList = parseManualLessonPrices(joined, {
-      maxCount: MAX_MANUAL_LESSON_PRICE_OPTIONS,
-    });
-    if (!parsedList.valid) {
-      return "";
-    }
-    return parsedList.values.map((entry) => formatFixed(entry, 2)).join(", ");
+    const normalizedValues = value
+      .map((entry) => parseNumber(entry, null))
+      .filter((entry) => entry !== null && entry >= 0)
+      .slice(0, MAX_MANUAL_LESSON_PRICE_OPTIONS)
+      .map((entry) => formatFixed(entry, 2));
+    return normalizedValues.join(", ");
   }
   return "";
 }
@@ -63,27 +61,23 @@ export function normalizePersistedInputValues(values, options = {}) {
     normalized[netKey] = Number.isFinite(parsed) ? Math.max(parsed, 0) : null;
   });
 
-  if (persistedAcceptableIncomeMinKey) {
-    const acceptableMin = Number(normalized[persistedAcceptableIncomeMinKey]);
-    if (Number.isFinite(acceptableMin)) {
-      normalized[persistedAcceptableIncomeMinKey] = Math.max(acceptableMin, 0);
-    } else if (
-      normalized[persistedAcceptableIncomeMinKey] !== null
-      && typeof normalized[persistedAcceptableIncomeMinKey] !== "undefined"
-    ) {
+  if (persistedAcceptableIncomeMinKey && Object.prototype.hasOwnProperty.call(normalized, persistedAcceptableIncomeMinKey)) {
+    const value = normalized[persistedAcceptableIncomeMinKey];
+    if (value === null || typeof value === "undefined") {
       normalized[persistedAcceptableIncomeMinKey] = null;
+    } else {
+      const acceptableMin = Number(value);
+      normalized[persistedAcceptableIncomeMinKey] = Number.isFinite(acceptableMin) ? Math.max(acceptableMin, 0) : null;
     }
   }
 
-  if (persistedAcceptableIncomeMaxKey) {
-    const acceptableMax = Number(normalized[persistedAcceptableIncomeMaxKey]);
-    if (Number.isFinite(acceptableMax)) {
-      normalized[persistedAcceptableIncomeMaxKey] = Math.max(acceptableMax, 0);
-    } else if (
-      normalized[persistedAcceptableIncomeMaxKey] !== null
-      && typeof normalized[persistedAcceptableIncomeMaxKey] !== "undefined"
-    ) {
+  if (persistedAcceptableIncomeMaxKey && Object.prototype.hasOwnProperty.call(normalized, persistedAcceptableIncomeMaxKey)) {
+    const value = normalized[persistedAcceptableIncomeMaxKey];
+    if (value === null || typeof value === "undefined") {
       normalized[persistedAcceptableIncomeMaxKey] = null;
+    } else {
+      const acceptableMax = Number(value);
+      normalized[persistedAcceptableIncomeMaxKey] = Number.isFinite(acceptableMax) ? Math.max(acceptableMax, 0) : null;
     }
   }
 

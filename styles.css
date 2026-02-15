@@ -962,9 +962,15 @@ header {
 
 .data-portability__actions {
   display: flex;
-  flex: 0 0 auto;
+  flex: 1 1 280px;
   gap: 12px;
   flex-wrap: wrap;
+  min-width: 0;
+}
+
+.data-portability__actions button {
+  flex: 1 1 140px;
+  max-width: 100%;
 }
 
 .header-link {

@@ -10,9 +10,11 @@ The project is gradually being modularized. Currently:
 | ------ | --------- |
 | `index.html` | Main application HTML structure (~1,050 lines) |
 | `styles.css` | All main application CSS (~2,050 lines) |
-| `app.js` | Main application entry and glue logic (now imports shared helpers) |
+| `app.js` | Main application entry, orchestration, and event wiring |
 | `js/utils.js` | Shared utility helpers (formatting, parsing, validation, HTML escaping) |
 | `js/storage.js` | Persistence and data-portability logic (save/load/migrate/export/import) |
+| `js/accounting-report.js` | Pure renderer that builds standalone accountant report HTML output |
+| `js/pricing-table.js` | Pure render/calculation helpers for pricing table HTML and best-match lookup |
 | `pwa.js` | Progressive Web App registration |
 | `service-worker.js` | Offline caching logic |
 | `resources.html` | Helpful resources page |
@@ -20,7 +22,7 @@ The project is gradually being modularized. Currently:
 
 **Icons:** SVG icon sprites are defined at the top of `index.html` (`#icon-info`, `#icon-chevron-down`) and referenced throughout using `<svg><use href="#icon-..."></use></svg>`.
 
-**Note:** `app.js` contains embedded CSS inside a JavaScript template literal for the print report feature. This is intentional — it generates a standalone HTML document for printing.
+**Note:** the standalone report template and embedded print CSS were moved to `js/accounting-report.js` so `app.js` stays focused on orchestration.
 
 ## Progressive Web App support
 

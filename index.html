@@ -13,7 +13,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link
-    href="https://fonts.googleapis.com/css2?family=Clash+Display:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap"
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
     rel="stylesheet" />
   <title>Course Pricing Calculator</title>
   <script src="./pwa.js" defer></script>
@@ -36,29 +36,23 @@
   </svg>
 
   <div class="page">
-    <nav class="top-nav">
-      <div class="top-nav__start">
-        <button type="button" id="reset-saved-inputs" class="top-action">Restore default input values</button>
-        <button type="button" id="clear-all-app-data" class="top-action danger">Clear all app data</button>
-      </div>
-      <div class="top-nav__end">
-        <a href="./resources.html" class="top-link">Helpful Resources</a>
-        <a href="#" id="how-to-link" class="top-link">How To Use This Tool</a>
-      </div>
-    </nav>
+    <div class="theme-corner">
+      <button type="button" class="theme-toggle" id="theme-toggle" aria-pressed="true">
+        <span class="toggle-track" aria-hidden="true">
+          <span class="toggle-thumb"></span>
+        </span>
+      </button>
+    </div>
     <header>
       <div class="header-text">
         <h1>Course Pricing Calculator</h1>
         <p>Estimate per-student pricing to reach your target income. All calculations stay on this page.</p>
       </div>
-      <div class="header-actions">
-        <a class="header-link" href="#privacy-info">Your Info Is Safe</a>
-        <button type="button" class="theme-toggle" id="theme-toggle" aria-pressed="true">
-          <span class="toggle-track" aria-hidden="true">
-            <span class="toggle-thumb"></span>
-          </span>
-
-        </button>
+      <div class="header-button-row" role="group" aria-label="Quick actions">
+        <button type="button" id="reset-saved-inputs" class="top-action">Restore default input values</button>
+        <button type="button" id="clear-all-app-data" class="top-action danger">Clear all app data</button>
+        <a href="./resources.html" class="top-link">Helpful Resources</a>
+        <a href="#" id="how-to-link" class="top-link">How To Use This Tool</a>
       </div>
     </header>
 

@@ -1,4 +1,5 @@
-import { escapeHtml, formatCurrency, formatFixed } from "./utils.js";
+import { formatCurrency, formatFixed } from "./utils.js";
+import { shouldHighlightIncome } from "./calculations.js";
 
 const MONTHS_PER_YEAR = 12;
 const PRICING_MODE_TARGET = "target";
@@ -57,150 +58,6 @@ export function findBestPricingCombination(studentsTarget, classesPerWeekTarget,
     exactClasses: bestMatch.classDiff < tolerance,
   };
 }
-
-
-function shouldHighlightIncome({ monthlyNet, annualNet }, options = {}) {
-  const { acceptableIncome = null, displayMode = "net", taxRate = 0, activeMonths = MONTHS_PER_YEAR } = options;
-
-  if (!acceptableIncome || typeof acceptableIncome !== "object") {
-    return false;
-  }
-
-  const { basis, minAnnualNet, maxAnnualNet } = acceptableIncome;
-  const hasMin = Number.isFinite(minAnnualNet);
-  const hasMax = Number.isFinite(maxAnnualNet);
-
-  if (!basis || (!hasMin && !hasMax)) {
-    return false;
-  }
-
-  const normalizedTaxRate = Math.min(Math.max(taxRate, 0), 0.9999);
-  const denominator = Math.max(1 - normalizedTaxRate, 0.0001);
-  const monthsForRange = activeMonths > 0 ? activeMonths : MONTHS_PER_YEAR;
-  const averageMonthsForRange = MONTHS_PER_YEAR;
-
-  const convertNetToDisplay = (value) => {
-    if (!Number.isFinite(value)) {
-      return null;
-    }
-    return displayMode === "gross" ? value / denominator : value;
-  };
-
-  if (basis === "annual") {
-    if (!Number.isFinite(annualNet)) {
-      return false;
-    }
-    const valueDisplay = convertNetToDisplay(annualNet);
-    const minDisplay = hasMin ? convertNetToDisplay(minAnnualNet) : null;
-    const maxDisplay = hasMax ? convertNetToDisplay(maxAnnualNet) : null;
-    if (!Number.isFinite(valueDisplay)) {
-      return false;
-    }
-    if (Number.isFinite(minDisplay) && valueDisplay < minDisplay) {
-      return false;
-    }
-    if (Number.isFinite(maxDisplay) && valueDisplay > maxDisplay) {
-      return false;
-    }
-    return true;
-  }
-
-  if (basis === "averageMonthly") {
-    if (!Number.isFinite(annualNet)) {
-      return false;
-    }
-    const valueDisplay = convertNetToDisplay(annualNet / averageMonthsForRange);
-    const minDisplay = hasMin ? convertNetToDisplay(minAnnualNet / averageMonthsForRange) : null;
-    const maxDisplay = hasMax ? convertNetToDisplay(maxAnnualNet / averageMonthsForRange) : null;
-    if (!Number.isFinite(valueDisplay)) {
-      return false;
-    }
-    if (Number.isFinite(minDisplay) && valueDisplay < minDisplay) {
-      return false;
-    }
-    if (Number.isFinite(maxDisplay) && valueDisplay > maxDisplay) {
-      return false;
-    }
-    return true;
-  }
-
-  if (!Number.isFinite(monthlyNet)) {
-    return false;
-  }
-  const valueDisplay = convertNetToDisplay(monthlyNet);
-  const minDisplay = hasMin ? convertNetToDisplay(minAnnualNet / monthsForRange) : null;
-  const maxDisplay = hasMax ? convertNetToDisplay(maxAnnualNet / monthsForRange) : null;
-  if (!Number.isFinite(valueDisplay)) {
-    return false;
-  }
-  if (Number.isFinite(minDisplay) && valueDisplay < minDisplay) {
-    return false;
-  }
-  if (Number.isFinite(maxDisplay) && valueDisplay > maxDisplay) {
-    return false;
-  }
-  return true;
-}
-
-
-export function buildCostsSummary(costs, symbol, activeMonths) {
-  const fixedCostLabels = {
-    location: "Location / venue",
-    insurance: "Business insurance",
-    disability: "Disability insurance (AOV)",
-    health: "Health insurance premium",
-    pension: "Pension contributions",
-    marketing: "Marketing",
-    materials: "Materials",
-    admin: "Admin / software",
-    development: "Professional development",
-  };
-  const variableCostLabels = {
-    perClass: "Variable cost per class",
-    perStudent: "Variable cost per student",
-    perStudentMonthly: "Variable monthly cost per student",
-  };
-
-  const includedCosts = [];
-  const excludedCosts = [];
-
-  // Process fixed costs
-  Object.entries(fixedCostLabels).forEach(([key, label]) => {
-    const annualValue = costs.fixed?.[key] ?? 0;
-    if (annualValue > 0) {
-      const monthlyValue = activeMonths > 0 ? annualValue / activeMonths : annualValue / MONTHS_PER_YEAR;
-      includedCosts.push(`${label} (${formatCurrency(symbol, monthlyValue)})`);
-    } else {
-      excludedCosts.push(label);
-    }
-  });
-
-  // Process variable costs
-  const variableCostKeys = [
-    { key: "perClass", value: costs.variable?.perClass ?? 0 },
-    { key: "perStudent", value: costs.variable?.perStudent ?? 0 },
-    { key: "perStudentMonthly", value: costs.variable?.perStudentMonthly ?? 0 },
-  ];
-  variableCostKeys.forEach(({ key, value }) => {
-    const label = variableCostLabels[key];
-    if (value > 0) {
-      includedCosts.push(`${label} (${formatCurrency(symbol, value)})`);
-    } else {
-      excludedCosts.push(label);
-    }
-  });
-
-  const includedHtml = includedCosts.length
-    ? `<p class="costs-summary-item"><strong>Costs included (monthly):</strong> ${escapeHtml(includedCosts.join(", "))}</p>`
-    : `<p class="costs-summary-item"><strong>Costs included (monthly):</strong> <em>None</em></p>`;
-  const excludedHtml = excludedCosts.length
-    ? `<p class="costs-summary-item"><strong>Costs not included:</strong> ${escapeHtml(excludedCosts.join(", "))}</p>`
-    : "";
-
-  return `<div class="costs-summary">${includedHtml}${excludedHtml}</div>`;
-}
-
-
 export function buildPricingTable(data, symbol, bufferPercent, options = {}) {
   if (!data.length) {
     return `<div class="card"><p class="status-message">No valid combinations available.</p></div>`;
@@ -454,4 +311,3 @@ export function buildPricingTable(data, symbol, bufferPercent, options = {}) {
         </div>
       `;
 }
-

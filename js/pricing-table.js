@@ -363,15 +363,15 @@ export function buildPricingTable(data, symbol, bufferPercent, options = {}) {
     "Dynamic target-based suggested price is boosted by the buffer to compensate potential shortfall and help achieve desired income. Fixed prices do not change when buffer is on. Instead, each fixed-price square shows an annual shortfall line (Annual ... -X% buffer), and that shortfall value drives acceptable-income highlighting.";
   const toggleMarkup = `<div class="price-display-toggles">
             <label class="display-toggle">
-              <input type="checkbox" class="display-toggle-checkbox" data-toggle="exVat" ${showExVat ? "checked" : ""} />
+              <input type="checkbox" class="display-toggle-checkbox" data-toggle="exVat" ${displayExVat ? "checked" : ""} />
               <span>ex VAT</span>
             </label>
             <label class="display-toggle">
-              <input type="checkbox" class="display-toggle-checkbox" data-toggle="hourly" ${showHourlyRate ? "checked" : ""} />
+              <input type="checkbox" class="display-toggle-checkbox" data-toggle="hourly" ${displayHourly ? "checked" : ""} />
               <span>${hourlyRateLabel}</span>
             </label>
             <label class="display-toggle">
-              <input type="checkbox" class="display-toggle-checkbox" data-toggle="annual" ${showAnnualIncome ? "checked" : ""} />
+              <input type="checkbox" class="display-toggle-checkbox" data-toggle="annual" ${displayAnnual ? "checked" : ""} />
               <span>${annualIncomeLabel}</span>
             </label>
             <label class="display-toggle display-toggle--buffer">

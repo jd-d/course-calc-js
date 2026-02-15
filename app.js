@@ -2768,6 +2768,281 @@ function formatBreakdownCurrency(value) {
   return Number.isFinite(value) ? formatCurrency(latestCurrencySymbol, value) : "—";
 }
 
+function populateBreakdownDialog(context) {
+  if (!context || !Array.isArray(latestPricingData) || !breakdownDialog || !breakdownSummary) {
+    return false;
+  }
+
+  if (latestPricingMode !== PRICING_MODE_TARGET) {
+    return false;
+  }
+
+  const { rowIndex, columnIndex, variant } = context;
+  const requestedManualIndex = Number.isFinite(context.manualIndex) && context.manualIndex >= 0 ? Math.trunc(context.manualIndex) : null;
+  const requestedPriceSource = context.priceSource === "manual" ? "manual" : "dynamic";
+  const row = latestPricingData[rowIndex];
+  if (!row || !Array.isArray(row.columns)) {
+    return false;
+  }
+
+  const column = row.columns[columnIndex];
+  if (!column) {
+    return false;
+  }
+
+  const manualOptions = Array.isArray(column.manualOptions) ? column.manualOptions : [];
+  const selectedManualOption =
+    requestedPriceSource === "manual" && manualOptions.length
+      ? requestedManualIndex !== null
+        ? manualOptions[requestedManualIndex] || manualOptions[0]
+        : manualOptions[0]
+      : null;
+  const selectedManualIndex = selectedManualOption ? (Number.isFinite(selectedManualOption.index) ? selectedManualOption.index : 0) : null;
+  const useManualSource = Boolean(selectedManualOption);
+
+  const pricingVariant = useManualSource ? selectedManualOption.base : variant === "base" ? column.base : column.buffered;
+  if (!pricingVariant || !pricingVariant.breakdown) {
+    return false;
+  }
+
+  const breakdown = pricingVariant.breakdown;
+  const perStudentInclVat = formatCurrency(latestCurrencySymbol, pricingVariant.priceInclVat);
+  const perStudentExVat = formatCurrency(latestCurrencySymbol, pricingVariant.priceExVat);
+  const perLessonInclVat = formatCurrency(latestCurrencySymbol, breakdown.totals.priceInclVatPerLesson);
+  const perLessonExVat = formatCurrency(latestCurrencySymbol, breakdown.totals.priceExVatPerLesson);
+
+  const studentsDisplay = Number.isFinite(row.students) ? numberFormatter.format(row.students) : "-";
+  const classesPerWeekValue = column.classesPerWeek;
+  const classesPerWeekDisplay = Number.isFinite(classesPerWeekValue)
+    ? Number.isInteger(classesPerWeekValue)
+      ? numberFormatter.format(classesPerWeekValue)
+      : formatFixed(classesPerWeekValue, 2)
+    : "-";
+  const classesPerYearDisplay = Number.isFinite(column.classesPerYear) ? numberFormatter.format(Math.round(column.classesPerYear)) : "-";
+
+  let variantLabel;
+  if (useManualSource) {
+    const manualLabel = selectedManualIndex !== null && manualOptions.length > 1 ? ` (price ${selectedManualIndex + 1})` : "";
+    variantLabel =
+      variant === "base"
+        ? `Full attendance at set lesson price${manualLabel}`
+        : `Set lesson price (buffer ignored)${manualLabel}`;
+  } else {
+    variantLabel =
+      variant === "base" ? "Base price (no buffer)" : `Buffered price (+${formatFixed(latestBufferPercent, 1)}% extra safety margin)`;
+  }
+
+  if (breakdownVariant) {
+    breakdownVariant.textContent = variantLabel;
+  }
+
+  if (breakdownPrice) {
+    breakdownPrice.textContent = `${perStudentInclVat} per student (${perStudentExVat} ex VAT)`;
+  }
+
+  if (breakdownMeta) {
+    breakdownMeta.textContent = `${studentsDisplay} students · ${classesPerWeekDisplay} classes/week (≈ ${classesPerYearDisplay} / yr)`;
+  }
+
+  if (breakdownTotal) {
+    breakdownTotal.textContent = `Total collected per lesson: ${perLessonInclVat} (${perLessonExVat} ex VAT)`;
+  }
+
+  const tableRows = [
+    { key: "vat", label: "VAT remitted" },
+    { key: "variableCosts", label: "Variable costs" },
+    { key: "fixedCostAllocation", label: "Fixed cost allocation" },
+    { key: "incomeTax", label: "Income tax" },
+    { key: "netIncome", label: "Net income after tax" },
+  ];
+
+  if (breakdownTableBody) {
+    const rowsMarkup = tableRows
+      .map((item) => {
+        const perStudentValue = breakdown.perStudent[item.key];
+        const perLessonValue = breakdown.perLesson[item.key];
+        return `
+          <tr>
+            <th scope="row">${escapeHtml(item.label)}</th>
+            <td>${escapeHtml(formatBreakdownCurrency(perStudentValue))}</td>
+            <td>${escapeHtml(formatBreakdownCurrency(perLessonValue))}</td>
+          </tr>
+        `;
+      })
+      .join("");
+    breakdownTableBody.innerHTML = rowsMarkup;
+  }
+
+  if (breakdownSummary) {
+    breakdownSummary.textContent = `${studentsDisplay} students x ${classesPerWeekDisplay} classes/week`;
+  }
+
+  const legendItems = [
+    { key: "vat", label: "VAT", color: "var(--breakdown-color-vat)" },
+    { key: "variableCosts", label: "Variable costs", color: "var(--breakdown-color-variable)" },
+    { key: "fixedCostAllocation", label: "Fixed costs", color: "var(--breakdown-color-fixed)" },
+    { key: "incomeTax", label: "Income tax", color: "var(--breakdown-color-tax)" },
+    { key: "netIncome", label: "Net income", color: "var(--breakdown-color-net)" },
+  ].map((item) => ({
+    ...item,
+    value: breakdown.perLesson[item.key],
+  }));
+
+  if (breakdownLegend) {
+    const legendMarkup = legendItems
+      .map(
+        (item) => `
+            <li>
+              <span class="lesson-breakdown-dialog__legend-swatch" style="--swatch-color:${item.color};"></span>
+              <span class="lesson-breakdown-dialog__legend-label">${item.label}</span>
+              <span class="lesson-breakdown-dialog__legend-value">${formatBreakdownCurrency(item.value)}</span>
+            </li>
+          `,
+      )
+      .join("");
+    breakdownLegend.innerHTML = legendMarkup;
+  }
+
+  if (breakdownChartGraphic) {
+    const positiveSegments = legendItems.map((item) => Math.max(item.value, 0));
+    const total = positiveSegments.reduce((sum, value) => sum + value, 0);
+
+    if (total > 0) {
+      let currentAngle = 0;
+      const segments = legendItems
+        .map((item, index) => {
+          const value = positiveSegments[index];
+          if (value <= 0) {
+            return null;
+          }
+          const start = currentAngle;
+          const end = start + (value / total) * 360;
+          currentAngle = end;
+          return `${item.color} ${start}deg ${end}deg`;
+        })
+        .filter(Boolean);
+
+      breakdownChartGraphic.style.background = segments.length
+        ? `conic-gradient(${segments.join(", ")})`
+        : "radial-gradient(circle at 50% 50%, var(--price-line-bg), var(--row-header-bg))";
+    } else {
+      breakdownChartGraphic.style.background = "radial-gradient(circle at 50% 50%, var(--price-line-bg), var(--row-header-bg))";
+    }
+  }
+
+  return true;
+}
+
+function openBreakdownDialog(context, triggerElement) {
+  if (!breakdownDialog) {
+    return;
+  }
+
+  const normalizedContext = {
+    rowIndex: Number(context?.rowIndex),
+    columnIndex: Number(context?.columnIndex),
+    variant: context?.variant === "base" ? "base" : "buffered",
+    priceSource: context?.priceSource === "manual" ? "manual" : "dynamic",
+    manualIndex:
+      Number.isFinite(Number(context?.manualIndex)) && Number(context?.manualIndex) >= 0 ? Math.trunc(Number(context.manualIndex)) : null,
+  };
+
+  if (!populateBreakdownDialog(normalizedContext)) {
+    return;
+  }
+
+  activeBreakdownContext = normalizedContext;
+  breakdownTriggerElement = triggerElement instanceof HTMLElement ? triggerElement : null;
+  breakdownDialog.hidden = false;
+  breakdownDialog.scrollTop = 0;
+  setBodyScrollLock("breakdown", true);
+
+  window.requestAnimationFrame(() => {
+    const focusable = getFocusableElements(breakdownDialog);
+    if (focusable.length) {
+      focusable[0].focus();
+    } else if (breakdownClose) {
+      breakdownClose.focus();
+    }
+  });
+
+  document.addEventListener("keydown", handleBreakdownKeydown);
+}
+
+function closeBreakdownDialog() {
+  if (!breakdownDialog || breakdownDialog.hidden) {
+    return;
+  }
+
+  breakdownDialog.hidden = true;
+  setBodyScrollLock("breakdown", false);
+  document.removeEventListener("keydown", handleBreakdownKeydown);
+
+  const trigger = breakdownTriggerElement;
+  breakdownTriggerElement = null;
+  activeBreakdownContext = null;
+
+  if (trigger instanceof HTMLElement && trigger.isConnected && typeof trigger.focus === "function") {
+    trigger.focus();
+  }
+}
+
+function handleBreakdownKeydown(event) {
+  if (!breakdownDialog || breakdownDialog.hidden) {
+    return;
+  }
+
+  if (event.key === "Escape") {
+    event.preventDefault();
+    closeBreakdownDialog();
+    return;
+  }
+
+  if (event.key === "Tab") {
+    const focusable = getFocusableElements(breakdownDialog);
+    if (!focusable.length) {
+      event.preventDefault();
+      return;
+    }
+
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+
+    if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    } else if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    }
+  }
+}
+
+function refreshBreakdownDialog() {
+  if (!breakdownDialog || breakdownDialog.hidden || !activeBreakdownContext) {
+    return false;
+  }
+
+  const refreshed = populateBreakdownDialog(activeBreakdownContext);
+  if (refreshed) {
+    const updatedTrigger = findBreakdownButton(activeBreakdownContext);
+    if (updatedTrigger) {
+      breakdownTriggerElement = updatedTrigger;
+    }
+  }
+
+  return refreshed;
+}
+
+function computeNetIncomeFromRevenue(revenue, fixedCosts, effectiveTaxRate, variableCosts = 0) {
+  if (!Number.isFinite(revenue)) {
+    return null;
+  }
+  const normalizedVariableCosts = Number.isFinite(variableCosts) ? variableCosts : 0;
+  const profitBeforeTax = revenue - fixedCosts - normalizedVariableCosts;
+  return profitBeforeTax * (1 - effectiveTaxRate);
+}
+
 function buildActiveTargetsTable({ currencySymbol, revenueNeeded, workingDaysPerYear, workingWeeks, activeMonths }) {
   if (!Number.isFinite(revenueNeeded) || revenueNeeded <= 0) {
     return "";

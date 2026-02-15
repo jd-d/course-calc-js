@@ -53,6 +53,14 @@ The agent should also suggest merging PRs that appear ready to keep the number o
 - Reproduce/verify the behavior on the preview: `https://{owner}.github.io/{repo}/previews/pr-{N}/`.
 - Iterate by pushing commits to the same PR branch until verified.
 
+### Minimum Post-Render Smoke Checks
+
+After UI or modularization changes, always run a quick browser smoke pass once the page is rendered. Verify at least:
+- The lesson price table renders with rows/cells after default load or after one recalculate action.
+- Settings data-portability controls respond (Import JSON opens file picker flow, Export JSON triggers download flow).
+- Reset/clear controls respond (reset saved inputs and clear app data buttons execute their handlers).
+- No blocking runtime errors appear in browser console (`pageerror` / uncaught reference errors).
+
 ### If An Agent Cannot Open PRs
 
 - They should still create a branch and commit changes.

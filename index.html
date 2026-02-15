@@ -52,13 +52,22 @@
         <button type="button" id="reset-saved-inputs" class="top-action">Restore default input values</button>
         <button type="button" id="clear-all-app-data" class="top-action danger">Clear all app data</button>
         <a href="./resources.html" class="top-link">Helpful Resources</a>
+        <a href="#privacy-info" class="top-link">Your Info Is Safe</a>
         <a href="#" id="how-to-link" class="top-link">How To Use This Tool</a>
       </div>
     </header>
 
     <div class="layout" id="main-layout">
       <section class="card controls" id="inputs-panel" aria-labelledby="inputs-heading">
-        <h2 id="inputs-heading" style="font-size: 1.1rem;">Inputs</h2>
+        <div class="inputs-panel-header">
+          <h2 id="inputs-heading" style="font-size: 1.1rem;">Inputs</h2>
+          <button type="button" id="controls-panel-toggle" class="controls-panel-toggle" aria-controls="inputs-panel"
+            aria-expanded="true" aria-label="Collapse inputs panel" title="Collapse inputs panel">
+            <svg class="toggle-icon">
+              <use href="#icon-chevron-down"></use>
+            </svg>
+          </button>
+        </div>
         <fieldset class="control-sections">
           <legend class="visually-hidden">Calculator inputs</legend>
 
@@ -794,13 +803,6 @@
         </div>
         <p class="status-message" id="status-message" aria-live="polite"></p>
       </section>
-
-      <button type="button" id="controls-panel-toggle" class="controls-panel-toggle" aria-controls="inputs-panel"
-        aria-expanded="true" aria-label="Collapse inputs panel" title="Collapse inputs panel">
-        <svg class="toggle-icon">
-          <use href="#icon-chevron-down"></use>
-        </svg>
-      </button>
 
       <section class="tables" aria-live="polite">
         <div class="table-grid" id="tables-container">

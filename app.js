@@ -301,17 +301,6 @@ function toggleCollapsibleSection(section, { trigger, explicitState, skipPersist
   const nextCollapsed = typeof explicitState === "boolean" ? explicitState : !isCollapsed;
 
   if (nextCollapsed === isCollapsed) {
-    const scroll = () => {
-      if (typeof section.scrollIntoView === "function") {
-        section.scrollIntoView({ behavior: "smooth", block: "start" });
-      }
-    };
-
-    if (typeof requestAnimationFrame === "function") {
-      requestAnimationFrame(scroll);
-    } else {
-      scroll();
-    }
     return;
   }
 
@@ -332,18 +321,6 @@ function toggleCollapsibleSection(section, { trigger, explicitState, skipPersist
         topToggle.focus();
       }
     }
-  }
-
-  const scroll = () => {
-    if (typeof section.scrollIntoView === "function") {
-      section.scrollIntoView({ behavior: "smooth", block: "start" });
-    }
-  };
-
-  if (typeof requestAnimationFrame === "function") {
-    requestAnimationFrame(scroll);
-  } else {
-    scroll();
   }
 
   if (!skipPersistence && persistenceEnabled) {

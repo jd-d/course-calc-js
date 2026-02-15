@@ -80,6 +80,8 @@ export function buildPriceBreakdown({
   };
 }
 
+const INCOME_RANGE_TOLERANCE = 1e-6;
+
 export function shouldHighlightIncome({ monthlyNet, annualNet }, options = {}) {
   const { acceptableIncome = null, displayMode = "net", taxRate = 0, activeMonths = MONTHS_PER_YEAR } = options;
 
@@ -117,10 +119,10 @@ export function shouldHighlightIncome({ monthlyNet, annualNet }, options = {}) {
     if (!Number.isFinite(valueDisplay)) {
       return false;
     }
-    if (Number.isFinite(minDisplay) && valueDisplay < minDisplay) {
+    if (Number.isFinite(minDisplay) && valueDisplay < minDisplay - INCOME_RANGE_TOLERANCE) {
       return false;
     }
-    if (Number.isFinite(maxDisplay) && valueDisplay > maxDisplay) {
+    if (Number.isFinite(maxDisplay) && valueDisplay > maxDisplay + INCOME_RANGE_TOLERANCE) {
       return false;
     }
     return true;
@@ -136,10 +138,10 @@ export function shouldHighlightIncome({ monthlyNet, annualNet }, options = {}) {
     if (!Number.isFinite(valueDisplay)) {
       return false;
     }
-    if (Number.isFinite(minDisplay) && valueDisplay < minDisplay) {
+    if (Number.isFinite(minDisplay) && valueDisplay < minDisplay - INCOME_RANGE_TOLERANCE) {
       return false;
     }
-    if (Number.isFinite(maxDisplay) && valueDisplay > maxDisplay) {
+    if (Number.isFinite(maxDisplay) && valueDisplay > maxDisplay + INCOME_RANGE_TOLERANCE) {
       return false;
     }
     return true;
@@ -154,10 +156,10 @@ export function shouldHighlightIncome({ monthlyNet, annualNet }, options = {}) {
   if (!Number.isFinite(valueDisplay)) {
     return false;
   }
-  if (Number.isFinite(minDisplay) && valueDisplay < minDisplay) {
+  if (Number.isFinite(minDisplay) && valueDisplay < minDisplay - INCOME_RANGE_TOLERANCE) {
     return false;
   }
-  if (Number.isFinite(maxDisplay) && valueDisplay > maxDisplay) {
+  if (Number.isFinite(maxDisplay) && valueDisplay > maxDisplay + INCOME_RANGE_TOLERANCE) {
     return false;
   }
   return true;

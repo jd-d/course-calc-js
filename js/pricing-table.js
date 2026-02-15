@@ -1,4 +1,4 @@
-import { formatCurrency, formatFixed } from "./utils.js";
+import { escapeHtml, formatCurrency, formatFixed } from "./utils.js";
 import { shouldHighlightIncome } from "./calculations.js";
 
 const MONTHS_PER_YEAR = 12;
@@ -97,18 +97,20 @@ export function buildPricingTable(data, symbol, bufferPercent, options = {}) {
   const monthlyIncomeLabel = incomeDisplayMode === "gross" ? "Monthly gross" : "Monthly net";
   const annualIncomeLabel = incomeDisplayMode === "gross" ? "Annual gross" : "Annual net";
 
-  const isPriceOutOfRange = (value) => {
+  const getPriceRangeIssue = (value) => {
     if (!hasPreferredRange || !Number.isFinite(value)) {
-      return false;
+      return null;
     }
     if (Number.isFinite(minLessonPrice) && value < minLessonPrice) {
-      return true;
+      return "below";
     }
     if (Number.isFinite(maxLessonPrice) && value > maxLessonPrice) {
-      return true;
+      return "above";
     }
-    return false;
+    return null;
   };
+
+  const isPriceOutOfRange = (value) => Boolean(getPriceRangeIssue(value));
 
   const normalizedLessonHours = Number.isFinite(lessonHours) && lessonHours > 0 ? lessonHours : null;
   const hourlyRateLabel = incomeDisplayMode === "gross" ? "Hourly gross" : "Hourly net";
@@ -168,7 +170,8 @@ export function buildPricingTable(data, symbol, bufferPercent, options = {}) {
 
     const exVat = formatCurrency(symbol, priceData.priceExVat);
     const inclVat = formatCurrency(symbol, priceData.priceInclVat);
-    const outOfRange = isPriceOutOfRange(priceData.priceInclVat);
+    const priceRangeIssue = getPriceRangeIssue(priceData.priceInclVat);
+    const outOfRange = Boolean(priceRangeIssue);
     const highlightIncome = shouldHighlightIncome(
       { monthlyNet: highlightMonthlyNet, annualNet: highlightAnnualNet },
       {
@@ -189,6 +192,17 @@ export function buildPricingTable(data, symbol, bufferPercent, options = {}) {
       priceClasses.push("price-line--acceptable");
     }
     const buttonClass = priceClasses.join(" ");
+    const styleMessages = [];
+    if (priceRangeIssue === "below") {
+      styleMessages.push("Lesson price below preferred price range.");
+    } else if (priceRangeIssue === "above") {
+      styleMessages.push("Lesson price above preferred price range.");
+    }
+    if (highlightIncome) {
+      styleMessages.push("Income falls within the acceptable income range specified.");
+    }
+    const styleTooltip = styleMessages.length ? escapeHtml(styleMessages.join(" ")) : "";
+    const styleTooltipAttributes = styleMessages.length ? ` title="${styleTooltip}" aria-description="${styleTooltip}"` : "";
     const annualIncomeDisplay = formatIncomeForDisplay(priceData.annualNet);
     const hourlyDisplay = formatHourlyRateDisplay(priceData.breakdown);
     const valueClass = outOfRange ? "price-value price-value--out-of-range" : "price-value";
@@ -204,7 +218,7 @@ export function buildPricingTable(data, symbol, bufferPercent, options = {}) {
             data-row="${rowIndex}"
             data-column="${columnIndex}"
             data-variant="${buttonVariant}"
-            data-price-source="${normalizedPriceSource}"${manualIndexAttribute}
+            data-price-source="${normalizedPriceSource}"${manualIndexAttribute}${styleTooltipAttributes}
           >
             <span class="price-label">${priceLabel}</span>
             <strong class="${valueClass}">${inclVat}</strong>

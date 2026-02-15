@@ -1,4 +1,5 @@
 import { escapeHtml, formatCurrency, formatFixed } from "./utils.js";
+import { shouldHighlightIncome } from "./calculations.js";
 
 const MONTHS_PER_YEAR = 12;
 const PRICING_MODE_TARGET = "target";
@@ -57,150 +58,6 @@ export function findBestPricingCombination(studentsTarget, classesPerWeekTarget,
     exactClasses: bestMatch.classDiff < tolerance,
   };
 }
-
-
-function shouldHighlightIncome({ monthlyNet, annualNet }, options = {}) {
-  const { acceptableIncome = null, displayMode = "net", taxRate = 0, activeMonths = MONTHS_PER_YEAR } = options;
-
-  if (!acceptableIncome || typeof acceptableIncome !== "object") {
-    return false;
-  }
-
-  const { basis, minAnnualNet, maxAnnualNet } = acceptableIncome;
-  const hasMin = Number.isFinite(minAnnualNet);
-  const hasMax = Number.isFinite(maxAnnualNet);
-
-  if (!basis || (!hasMin && !hasMax)) {
-    return false;
-  }
-
-  const normalizedTaxRate = Math.min(Math.max(taxRate, 0), 0.9999);
-  const denominator = Math.max(1 - normalizedTaxRate, 0.0001);
-  const monthsForRange = activeMonths > 0 ? activeMonths : MONTHS_PER_YEAR;
-  const averageMonthsForRange = MONTHS_PER_YEAR;
-
-  const convertNetToDisplay = (value) => {
-    if (!Number.isFinite(value)) {
-      return null;
-    }
-    return displayMode === "gross" ? value / denominator : value;
-  };
-
-  if (basis === "annual") {
-    if (!Number.isFinite(annualNet)) {
-      return false;
-    }
-    const valueDisplay = convertNetToDisplay(annualNet);
-    const minDisplay = hasMin ? convertNetToDisplay(minAnnualNet) : null;
-    const maxDisplay = hasMax ? convertNetToDisplay(maxAnnualNet) : null;
-    if (!Number.isFinite(valueDisplay)) {
-      return false;
-    }
-    if (Number.isFinite(minDisplay) && valueDisplay < minDisplay) {
-      return false;
-    }
-    if (Number.isFinite(maxDisplay) && valueDisplay > maxDisplay) {
-      return false;
-    }
-    return true;
-  }
-
-  if (basis === "averageMonthly") {
-    if (!Number.isFinite(annualNet)) {
-      return false;
-    }
-    const valueDisplay = convertNetToDisplay(annualNet / averageMonthsForRange);
-    const minDisplay = hasMin ? convertNetToDisplay(minAnnualNet / averageMonthsForRange) : null;
-    const maxDisplay = hasMax ? convertNetToDisplay(maxAnnualNet / averageMonthsForRange) : null;
-    if (!Number.isFinite(valueDisplay)) {
-      return false;
-    }
-    if (Number.isFinite(minDisplay) && valueDisplay < minDisplay) {
-      return false;
-    }
-    if (Number.isFinite(maxDisplay) && valueDisplay > maxDisplay) {
-      return false;
-    }
-    return true;
-  }
-
-  if (!Number.isFinite(monthlyNet)) {
-    return false;
-  }
-  const valueDisplay = convertNetToDisplay(monthlyNet);
-  const minDisplay = hasMin ? convertNetToDisplay(minAnnualNet / monthsForRange) : null;
-  const maxDisplay = hasMax ? convertNetToDisplay(maxAnnualNet / monthsForRange) : null;
-  if (!Number.isFinite(valueDisplay)) {
-    return false;
-  }
-  if (Number.isFinite(minDisplay) && valueDisplay < minDisplay) {
-    return false;
-  }
-  if (Number.isFinite(maxDisplay) && valueDisplay > maxDisplay) {
-    return false;
-  }
-  return true;
-}
-
-
-export function buildCostsSummary(costs, symbol, activeMonths) {
-  const fixedCostLabels = {
-    location: "Location / venue",
-    insurance: "Business insurance",
-    disability: "Disability insurance (AOV)",
-    health: "Health insurance premium",
-    pension: "Pension contributions",
-    marketing: "Marketing",
-    materials: "Materials",
-    admin: "Admin / software",
-    development: "Professional development",
-  };
-  const variableCostLabels = {
-    perClass: "Variable cost per class",
-    perStudent: "Variable cost per student",
-    perStudentMonthly: "Variable monthly cost per student",
-  };
-
-  const includedCosts = [];
-  const excludedCosts = [];
-
-  // Process fixed costs
-  Object.entries(fixedCostLabels).forEach(([key, label]) => {
-    const annualValue = costs.fixed?.[key] ?? 0;
-    if (annualValue > 0) {
-      const monthlyValue = activeMonths > 0 ? annualValue / activeMonths : annualValue / MONTHS_PER_YEAR;
-      includedCosts.push(`${label} (${formatCurrency(symbol, monthlyValue)})`);
-    } else {
-      excludedCosts.push(label);
-    }
-  });
-
-  // Process variable costs
-  const variableCostKeys = [
-    { key: "perClass", value: costs.variable?.perClass ?? 0 },
-    { key: "perStudent", value: costs.variable?.perStudent ?? 0 },
-    { key: "perStudentMonthly", value: costs.variable?.perStudentMonthly ?? 0 },
-  ];
-  variableCostKeys.forEach(({ key, value }) => {
-    const label = variableCostLabels[key];
-    if (value > 0) {
-      includedCosts.push(`${label} (${formatCurrency(symbol, value)})`);
-    } else {
-      excludedCosts.push(label);
-    }
-  });
-
-  const includedHtml = includedCosts.length
-    ? `<p class="costs-summary-item"><strong>Costs included (monthly):</strong> ${escapeHtml(includedCosts.join(", "))}</p>`
-    : `<p class="costs-summary-item"><strong>Costs included (monthly):</strong> <em>None</em></p>`;
-  const excludedHtml = excludedCosts.length
-    ? `<p class="costs-summary-item"><strong>Costs not included:</strong> ${escapeHtml(excludedCosts.join(", "))}</p>`
-    : "";
-
-  return `<div class="costs-summary">${includedHtml}${excludedHtml}</div>`;
-}
-
-
 export function buildPricingTable(data, symbol, bufferPercent, options = {}) {
   if (!data.length) {
     return `<div class="card"><p class="status-message">No valid combinations available.</p></div>`;
@@ -240,18 +97,20 @@ export function buildPricingTable(data, symbol, bufferPercent, options = {}) {
   const monthlyIncomeLabel = incomeDisplayMode === "gross" ? "Monthly gross" : "Monthly net";
   const annualIncomeLabel = incomeDisplayMode === "gross" ? "Annual gross" : "Annual net";
 
-  const isPriceOutOfRange = (value) => {
+  const getPriceRangeIssue = (value) => {
     if (!hasPreferredRange || !Number.isFinite(value)) {
-      return false;
+      return null;
     }
     if (Number.isFinite(minLessonPrice) && value < minLessonPrice) {
-      return true;
+      return "below";
     }
     if (Number.isFinite(maxLessonPrice) && value > maxLessonPrice) {
-      return true;
+      return "above";
     }
-    return false;
+    return null;
   };
+
+  const isPriceOutOfRange = (value) => Boolean(getPriceRangeIssue(value));
 
   const normalizedLessonHours = Number.isFinite(lessonHours) && lessonHours > 0 ? lessonHours : null;
   const hourlyRateLabel = incomeDisplayMode === "gross" ? "Hourly gross" : "Hourly net";
@@ -311,7 +170,8 @@ export function buildPricingTable(data, symbol, bufferPercent, options = {}) {
 
     const exVat = formatCurrency(symbol, priceData.priceExVat);
     const inclVat = formatCurrency(symbol, priceData.priceInclVat);
-    const outOfRange = isPriceOutOfRange(priceData.priceInclVat);
+    const priceRangeIssue = getPriceRangeIssue(priceData.priceInclVat);
+    const outOfRange = Boolean(priceRangeIssue);
     const highlightIncome = shouldHighlightIncome(
       { monthlyNet: highlightMonthlyNet, annualNet: highlightAnnualNet },
       {
@@ -332,6 +192,17 @@ export function buildPricingTable(data, symbol, bufferPercent, options = {}) {
       priceClasses.push("price-line--acceptable");
     }
     const buttonClass = priceClasses.join(" ");
+    const styleMessages = [];
+    if (priceRangeIssue === "below") {
+      styleMessages.push("Lesson price below preferred price range.");
+    } else if (priceRangeIssue === "above") {
+      styleMessages.push("Lesson price above preferred price range.");
+    }
+    if (highlightIncome) {
+      styleMessages.push("Income falls within the acceptable income range specified.");
+    }
+    const styleTooltip = styleMessages.length ? escapeHtml(styleMessages.join(" ")) : "";
+    const styleTooltipAttributes = styleMessages.length ? ` title="${styleTooltip}" aria-description="${styleTooltip}"` : "";
     const annualIncomeDisplay = formatIncomeForDisplay(priceData.annualNet);
     const hourlyDisplay = formatHourlyRateDisplay(priceData.breakdown);
     const valueClass = outOfRange ? "price-value price-value--out-of-range" : "price-value";
@@ -347,7 +218,7 @@ export function buildPricingTable(data, symbol, bufferPercent, options = {}) {
             data-row="${rowIndex}"
             data-column="${columnIndex}"
             data-variant="${buttonVariant}"
-            data-price-source="${normalizedPriceSource}"${manualIndexAttribute}
+            data-price-source="${normalizedPriceSource}"${manualIndexAttribute}${styleTooltipAttributes}
           >
             <span class="price-label">${priceLabel}</span>
             <strong class="${valueClass}">${inclVat}</strong>
@@ -454,4 +325,3 @@ export function buildPricingTable(data, symbol, bufferPercent, options = {}) {
         </div>
       `;
 }
-

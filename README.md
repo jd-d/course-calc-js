@@ -14,7 +14,8 @@ The project is gradually being modularized. Currently:
 | `js/utils.js` | Shared utility helpers (formatting, parsing, validation, HTML escaping) |
 | `js/storage.js` | Persistence and data-portability logic (save/load/migrate/export/import) |
 | `js/accounting-report.js` | Pure renderer that builds standalone accountant report HTML output |
-| `js/pricing-table.js` | Pure render/calculation helpers for pricing table HTML and best-match lookup |
+| `js/pricing-table.js` | Pure renderer for pricing table HTML and best-match lookup |
+| `js/calculations.js` | Calculation-focused helpers (`getInputs(controls, context)`, income math, cost summaries, breakdown builders) |
 | `pwa.js` | Progressive Web App registration |
 | `service-worker.js` | Offline caching logic |
 | `resources.html` | Helpful resources page |
@@ -22,7 +23,7 @@ The project is gradually being modularized. Currently:
 
 **Icons:** SVG icon sprites are defined at the top of `index.html` (`#icon-info`, `#icon-chevron-down`) and referenced throughout using `<svg><use href="#icon-..."></use></svg>`.
 
-**Note:** the standalone report template and embedded print CSS were moved to `js/accounting-report.js` so `app.js` stays focused on orchestration.
+**Note:** we are following the incremental modularization protocol in baby steps. The standalone report template lives in `js/accounting-report.js`, pricing table rendering in `js/pricing-table.js`, and calculation-heavy logic now in `js/calculations.js` so `app.js` remains focused on entry-point orchestration.
 
 ## Progressive Web App support
 
@@ -64,6 +65,12 @@ Preview directories are removed automatically when a pull request
 closes, courtesy of `.github/workflows/cleanup-preview.yml`.
 
 ## Manual regression test
+
+
+Use the primary screenshot smoke with the shared fixture:
+
+- Settings fixture: `tests/primary-ui-smoke-settings.json`
+- Script: `python3 scripts/primary_ui_smoke.py --url http://127.0.0.1:4173/ --screenshot artifacts/primary-ui-smoke.png`
 
 Use these steps to confirm acceptable-income persistence treats blank maximums as an open range.
 

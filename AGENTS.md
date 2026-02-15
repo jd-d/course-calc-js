@@ -61,6 +61,13 @@ After UI or modularization changes, always run a quick browser smoke pass once t
 - Reset/clear controls respond (reset saved inputs and clear app data buttons execute their handlers).
 - No blocking runtime errors appear in browser console (`pageerror` / uncaught reference errors).
 
+
+### Primary UI Smoke Test Fixture
+
+- For screenshot-based UI verification, use `tests/primary-ui-smoke-settings.json` as the baseline import config.
+- Run `scripts/primary_ui_smoke.py` to execute the primary smoke flow and capture a screenshot with this fixture.
+- This smoke test is the default reference for future visual checks unless a task explicitly requires different inputs.
+
 ### If An Agent Cannot Open PRs
 
 - They should still create a branch and commit changes.

@@ -66,6 +66,12 @@ closes, courtesy of `.github/workflows/cleanup-preview.yml`.
 
 ## Manual regression test
 
+
+Use the primary screenshot smoke with the shared fixture:
+
+- Settings fixture: `tests/primary-ui-smoke-settings.json`
+- Script: `python3 scripts/primary_ui_smoke.py --url http://127.0.0.1:4173/ --screenshot artifacts/primary-ui-smoke.png`
+
 Use these steps to confirm acceptable-income persistence treats blank maximums as an open range.
 
 1. Load the calculator and enable the **Remember my inputs** option.

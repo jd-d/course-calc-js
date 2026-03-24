@@ -2,6 +2,41 @@
 
 Something for working out costs and income.
 
+## Project docs
+
+Use the repo docs with distinct roles so planning and implementation context stay tidy:
+
+| File | Role |
+| ------ | --------- |
+| `README.md` | Current shipped behavior, architecture overview, deployment/testing guidance |
+| `TODO.md` | Active prioritized roadmap and workstreams |
+| `WIKI.md` | Durable implementation notes, tradeoffs, and planning context worth preserving |
+| `DATA_FORMAT.md` | JSON import/export schema and compatibility notes |
+| `REFACTOR.md` | Historical refactor prompt/context, not the active roadmap |
+
+When work changes behavior, architecture, or workflow expectations, update the relevant docs in the same change when practical.
+
+## Markdown lint
+
+Markdown in this repo uses `.markdownlint.jsonc` for rule configuration and
+`.markdownlintignore` for any excluded paths.
+
+Run the lint wrapper from PowerShell:
+
+```powershell
+./scripts/lint_markdown.ps1
+```
+
+Apply automatic fixes where markdownlint supports them:
+
+```powershell
+./scripts/lint_markdown.ps1 -Fix
+```
+
+The script looks for a repo-local `markdownlint` runner first and then falls
+back to a global install. If no runner is available, it prints the install
+commands to use.
+
 ## Architecture
 
 The project is gradually being modularized. Currently:
@@ -65,7 +100,6 @@ Preview directories are removed automatically when a pull request
 closes, courtesy of `.github/workflows/cleanup-preview.yml`.
 
 ## Manual regression test
-
 
 Use the primary screenshot smoke with the shared fixture:
 

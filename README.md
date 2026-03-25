@@ -2,6 +2,41 @@
 
 Something for working out costs and income.
 
+## Project docs
+
+Use the repo docs with distinct roles so planning and implementation context stay tidy:
+
+| File | Role |
+| ------ | --------- |
+| `README.md` | Current shipped behavior, architecture overview, deployment/testing guidance |
+| `TODO.md` | Active prioritized roadmap and workstreams |
+| `WIKI.md` | Durable implementation notes, tradeoffs, and planning context worth preserving |
+| `DATA_FORMAT.md` | JSON import/export schema and compatibility notes |
+| `REFACTOR.md` | Historical refactor prompt/context, not the active roadmap |
+
+When work changes behavior, architecture, or workflow expectations, update the relevant docs in the same change when practical.
+
+## Markdown lint
+
+Markdown in this repo uses `.markdownlint.jsonc` for rule configuration and
+`.markdownlintignore` for any excluded paths.
+
+Run the lint wrapper from PowerShell:
+
+```powershell
+./scripts/lint_markdown.ps1
+```
+
+Apply automatic fixes where markdownlint supports them:
+
+```powershell
+./scripts/lint_markdown.ps1 -Fix
+```
+
+The script looks for a repo-local `markdownlint` runner first and then falls
+back to a global install. If no runner is available, it prints the install
+commands to use.
+
 ## Architecture
 
 The project is gradually being modularized. Currently:
@@ -10,7 +45,12 @@ The project is gradually being modularized. Currently:
 | ------ | --------- |
 | `index.html` | Main application HTML structure (~1,050 lines) |
 | `styles.css` | All main application CSS (~2,050 lines) |
-| `app.js` | Main application JavaScript (~4,550 lines) |
+| `app.js` | Main application entry, orchestration, and event wiring |
+| `js/utils.js` | Shared utility helpers (formatting, parsing, validation, HTML escaping) |
+| `js/storage.js` | Persistence and data-portability logic (save/load/migrate/export/import) |
+| `js/accounting-report.js` | Pure renderer that builds standalone accountant report HTML output |
+| `js/pricing-table.js` | Pure renderer for pricing table HTML and best-match lookup |
+| `js/calculations.js` | Calculation-focused helpers (`getInputs(controls, context)`, income math, cost summaries, breakdown builders) |
 | `pwa.js` | Progressive Web App registration |
 | `service-worker.js` | Offline caching logic |
 | `resources.html` | Helpful resources page |
@@ -18,7 +58,7 @@ The project is gradually being modularized. Currently:
 
 **Icons:** SVG icon sprites are defined at the top of `index.html` (`#icon-info`, `#icon-chevron-down`) and referenced throughout using `<svg><use href="#icon-..."></use></svg>`.
 
-**Note:** `app.js` contains embedded CSS inside a JavaScript template literal for the print report feature. This is intentional — it generates a standalone HTML document for printing.
+**Note:** we are following the incremental modularization protocol in baby steps. The standalone report template lives in `js/accounting-report.js`, pricing table rendering in `js/pricing-table.js`, and calculation-heavy logic now in `js/calculations.js` so `app.js` remains focused on entry-point orchestration.
 
 ## Progressive Web App support
 
@@ -31,6 +71,10 @@ The service worker cache key is versioned (`course-pricing-calculator-v*`) so ne
 Use the **Export JSON** and **Import JSON** buttons in the Settings panel to move your saved setup between browsers. Exports include every input value, display toggle, and layout preference plus the active theme. The JSON schema is versioned in [`DATA_FORMAT.md`](./DATA_FORMAT.md) so future updates remain compatible with earlier downloads.
 
 ## Deployment options
+
+This project is a static site. For local development you can serve the repo
+with any simple static HTTP server, including Five Server, Live Server, or
+`python3 -m http.server`.
 
 This repository publishes the static site defined in `index.html` to
 GitHub Pages using the **Pages (prod + previews)** workflow in
@@ -60,6 +104,13 @@ Preview directories are removed automatically when a pull request
 closes, courtesy of `.github/workflows/cleanup-preview.yml`.
 
 ## Manual regression test
+
+Use the primary screenshot smoke with the shared fixture:
+
+- Settings fixture: `tests/primary-ui-smoke-settings.json`
+- Script: `python3 scripts/primary_ui_smoke.py --url http://127.0.0.1:5500/ --screenshot artifacts/primary-ui-smoke.png`
+- Replace the URL with whatever local static server you are using. Five
+  Server, Live Server, and `python3 -m http.server` are all valid.
 
 Use these steps to confirm acceptable-income persistence treats blank maximums as an open range.
 

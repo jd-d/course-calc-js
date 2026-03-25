@@ -72,6 +72,10 @@ Use the **Export JSON** and **Import JSON** buttons in the Settings panel to mov
 
 ## Deployment options
 
+This project is a static site. For local development you can serve the repo
+with any simple static HTTP server, including Five Server, Live Server, or
+`python3 -m http.server`.
+
 This repository publishes the static site defined in `index.html` to
 GitHub Pages using the **Pages (prod + previews)** workflow in
 `.github/workflows/pages.yml`. The workflow runs for pushes to `main`,
@@ -104,7 +108,9 @@ closes, courtesy of `.github/workflows/cleanup-preview.yml`.
 Use the primary screenshot smoke with the shared fixture:
 
 - Settings fixture: `tests/primary-ui-smoke-settings.json`
-- Script: `python3 scripts/primary_ui_smoke.py --url http://127.0.0.1:4173/ --screenshot artifacts/primary-ui-smoke.png`
+- Script: `python3 scripts/primary_ui_smoke.py --url http://127.0.0.1:5500/ --screenshot artifacts/primary-ui-smoke.png`
+- Replace the URL with whatever local static server you are using. Five
+  Server, Live Server, and `python3 -m http.server` are all valid.
 
 Use these steps to confirm acceptable-income persistence treats blank maximums as an open range.
 

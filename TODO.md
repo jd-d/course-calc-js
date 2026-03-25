@@ -84,6 +84,21 @@ Dependencies: easier once refactor work has separated calculation logic from UI 
 
 ## DONE
 
+- [x] Remove extra bottom whitespace from the table-grid results column.
+  - Stopped the results column from stretching to match the taller controls
+    panel.
+  - Removed forced full-height behavior from the pricing/results cards so
+    they hug their rendered content. (2026-03-25)
+
+- [x] Clean up local workspace noise after the docs/tooling commit.
+  - Ignored `course-calc-js.code-workspace` as a local editor artifact.
+  - Ignored `lint-docs-check.txt` as local markdown-lint output.
+  - Ignored `artifacts/primary-ui-smoke.png` as generated smoke-test output.
+  - Ignored `See--WSL2--github-wsl.lnk` as a local shortcut artifact.
+  - Ignored `.vscode/settings.json` as local editor environment config.
+  - Restored the executable bit on `scripts/primary_ui_smoke.py` because the
+    remaining diff was mode-only, not a content change. (2026-03-25)
+
 - [x] **Step 6 — Extract `js/calculations.js` (~500 lines):** `getInputs()`, `computeNetIncomeFromRevenue()`, cost helpers, `shouldHighlightIncome()`, `buildCostsSummary()`. Refactor `getInputs()` to accept a `controls` object param instead of reading globals. (2026-02-15)
 - [x] **Step 4 — Extract `js/accounting-report.js` (~425 lines):** `buildAccountingReport()` + its ~140-line embedded CSS template. Takes calculation results, returns standalone HTML string. (2026-02-15)
 - [x] **Step 5 — Extract `js/pricing-table.js` (~570 lines):** `buildPricingTable()` + `findBestPricingCombination()`. Takes inputs + calculation results, returns HTML. (2026-02-15)

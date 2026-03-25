@@ -1,3 +1,40 @@
+import {
+  DATA_PORTABILITY_VERSION,
+  buildDataPortabilityFilename,
+  buildDataPortabilityPayload,
+  clearPersistedInputs,
+  migrateLegacyPersistenceIfNeeded,
+  parseImportedPayload,
+  readPersistenceEnabled,
+  readPersistedValues,
+  savePersistedInputs as savePersistedInputsToStorage,
+  triggerJsonDownload,
+} from "./js/storage.js";
+import {
+  MAX_MANUAL_LESSON_PRICE_OPTIONS,
+  applyFieldValidationState,
+  escapeHtml,
+  formatCurrency,
+  formatCurrencyDetailed,
+  formatCurrencyOrDash,
+  formatFixed,
+  formatNumberValue,
+  parseManualLessonPrices,
+  parseNumber,
+  parseNumericValue,
+  updateInputValueIfAllowed,
+  validateNumberInput,
+} from "./js/utils.js";
+import { buildAccountingReport } from "./js/accounting-report.js";
+import { buildPricingTable, findBestPricingCombination } from "./js/pricing-table.js";
+import {
+  buildCostsSummary,
+  buildPriceBreakdown,
+  computeAnnualVariableCosts,
+  computeNetIncomeFromRevenue,
+  getInputs,
+} from "./js/calculations.js";
+
 const breakdownDialog = document.getElementById("lesson-breakdown-dialog");
 const breakdownBackdrop = document.getElementById("lesson-breakdown-backdrop");
 const breakdownClose = document.getElementById("lesson-breakdown-close");
@@ -29,6 +66,8 @@ let previouslyFocusedElement = null;
 let breakdownTriggerElement = null;
 let activeBreakdownContext = null;
 let accountingTriggerElement = null;
+
+const numberFormatter = new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 });
 
 const controls = {
   targetNet: document.getElementById("target-net"),
@@ -262,17 +301,6 @@ function toggleCollapsibleSection(section, { trigger, explicitState, skipPersist
   const nextCollapsed = typeof explicitState === "boolean" ? explicitState : !isCollapsed;
 
   if (nextCollapsed === isCollapsed) {
-    const scroll = () => {
-      if (typeof section.scrollIntoView === "function") {
-        section.scrollIntoView({ behavior: "smooth", block: "start" });
-      }
-    };
-
-    if (typeof requestAnimationFrame === "function") {
-      requestAnimationFrame(scroll);
-    } else {
-      scroll();
-    }
     return;
   }
 
@@ -293,18 +321,6 @@ function toggleCollapsibleSection(section, { trigger, explicitState, skipPersist
         topToggle.focus();
       }
     }
-  }
-
-  const scroll = () => {
-    if (typeof section.scrollIntoView === "function") {
-      section.scrollIntoView({ behavior: "smooth", block: "start" });
-    }
-  };
-
-  if (typeof requestAnimationFrame === "function") {
-    requestAnimationFrame(scroll);
-  } else {
-    scroll();
   }
 
   if (!skipPersistence && persistenceEnabled) {
@@ -548,7 +564,7 @@ function openAccountingDialog(event) {
   }
 
   if (!latestInputsSnapshot) {
-    const snapshotInputs = getInputs();
+    const snapshotInputs = getInputs(controls, buildCalculationsContext());
     latestInputsSnapshot = cloneInputs(snapshotInputs);
   }
 
@@ -685,7 +701,7 @@ function handleAccountingSubmit(event) {
   }
 
   if (!latestInputsSnapshot) {
-    latestInputsSnapshot = cloneInputs(getInputs());
+    latestInputsSnapshot = cloneInputs(getInputs(controls, buildCalculationsContext()));
   }
 
   const combination = findBestPricingCombination(studentsValue, classesPerWeekValue, latestPricingData);
@@ -884,16 +900,14 @@ if (themeToggleButton) {
   });
 }
 
-const numberFormatter = new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 });
-
 let latestResults = [];
 let includeBuffer = true;
 let showExVat = true;
 let showHourlyRate = true;
 let showAnnualIncome = true;
-let targetNetBasis = "year";
+let targetNetBasis = "avgMonth";
 let controlsPanelCollapsed = false;
-let desiredIncomeDisplayMode = "net";
+let desiredIncomeDisplayMode = "gross";
 let desiredIncomeLockedAsGross = false;
 let desiredIncomeLockedGrossValues = null;
 let acceptableIncomeLockedGrossMin = null;
@@ -1161,17 +1175,12 @@ const DEFAULT_MONTHS_OFF = 2;
 const DEFAULT_WEEKS_OFF_YEAR = (DEFAULT_MONTHS_OFF / MONTHS_PER_YEAR) * WEEKS_PER_YEAR;
 const FIELD_ERROR_CLASS = "field-error";
 const INFO_ICON_ERROR_CLASS = "info-icon--error";
-const ERROR_MESSAGE_INVALID = "please enter a valid number";
-const ERROR_MESSAGE_EMPTY = "this field is required";
 const ERROR_MESSAGE_RANGE_ORDER = "min cannot be greater than max";
-const MAX_MANUAL_LESSON_PRICE_OPTIONS = 3;
-const ERROR_MESSAGE_LESSON_PRICE_LIST_FORMAT = "use comma-separated prices (for example: 95, 105)";
-const ERROR_MESSAGE_LESSON_PRICE_LIST_MAX = `enter up to ${MAX_MANUAL_LESSON_PRICE_OPTIONS} prices`;
 const BASE_WORK_DAYS_PER_WEEK = 7;
 const TARGET_NET_DEFAULT = 50000;
 
 const ACCEPTABLE_INCOME_BASIS_VALUES = ["monthly", "averageMonthly", "annual"];
-let acceptableIncomeBasis = "monthly";
+let acceptableIncomeBasis = "averageMonthly";
 let acceptableIncomeMinAnnualNet = null;
 let acceptableIncomeMaxAnnualNet = null;
 let previousAcceptableIncome = null;
@@ -1179,6 +1188,19 @@ let lastActiveMonths = MONTHS_PER_YEAR;
 let lastWorkingWeeks = WEEKS_PER_YEAR;
 let timeOffSyncSource = "months";
 let timeOffSyncActive = false;
+
+const fieldValidationOptions = {
+  fieldErrorClass: FIELD_ERROR_CLASS,
+  infoIconErrorClass: INFO_ICON_ERROR_CLASS,
+  onInfoIconUpdate: renderInfoIconTooltip,
+};
+
+function updateInputValueIfAllowedWithValidationClass(input, result, value, options = {}) {
+  updateInputValueIfAllowed(input, result, value, {
+    ...options,
+    fieldErrorClass: FIELD_ERROR_CLASS,
+  });
+}
 
 function getAcceptableIncomeBasisAnnualMultiplier(basis, activeMonths) {
   const normalizedMonths = Number.isFinite(activeMonths) && activeMonths > 0 ? activeMonths : MONTHS_PER_YEAR;
@@ -1389,6 +1411,14 @@ function initializeDesiredIncomeDatasets() {
   });
 }
 
+function getCurrentTaxRate() {
+  if (!(controls.taxRate instanceof HTMLInputElement)) {
+    return 0.4;
+  }
+  const taxRatePercent = parseNumber(controls.taxRate.value, 40, { min: 0, max: 99.9 });
+  return taxRatePercent / 100;
+}
+
 function updateDesiredIncomeFromField(basis) {
   const field = getDesiredIncomeField(basis);
   if (!(field instanceof HTMLInputElement)) {
@@ -1524,14 +1554,6 @@ controls.fixedCostFields = fixedCostFields;
 
 const rememberInputsToggle = controls.rememberInputs instanceof HTMLInputElement ? controls.rememberInputs : null;
 const resetSavedInputsButton = controls.resetSavedInputs instanceof HTMLButtonElement ? controls.resetSavedInputs : null;
-const PERSISTENCE_SCHEMA_VERSION = "2";
-const LEGACY_PERSISTENCE_ENABLED_KEY = "course-pricing-save-enabled";
-const LEGACY_PERSISTENCE_VALUES_KEY = "course-pricing-saved-inputs";
-const PERSISTENCE_ENABLED_KEY = `${LEGACY_PERSISTENCE_ENABLED_KEY}-v${PERSISTENCE_SCHEMA_VERSION}`;
-const PERSISTENCE_VALUES_KEY = `${LEGACY_PERSISTENCE_VALUES_KEY}-v${PERSISTENCE_SCHEMA_VERSION}`;
-const PERSISTENCE_SCHEMA_META_KEY = "__persistenceSchemaVersion";
-const DATA_PORTABILITY_FORMAT = "course-pricing-calculator";
-const DATA_PORTABILITY_VERSION = "1.0.0";
 const dataPortabilityVersionElement = document.getElementById("data-portability-version");
 if (dataPortabilityVersionElement) {
   dataPortabilityVersionElement.textContent = DATA_PORTABILITY_VERSION;
@@ -1545,101 +1567,46 @@ updateDesiredIncomeTitle();
 updateDesiredIncomeLabels();
 updateAcceptableIncomeBasisLabel();
 
-function normalizeLessonCostPersistedValue(value) {
-  if (typeof value === "string") {
-    return value;
-  }
-  if (typeof value === "number" && Number.isFinite(value)) {
-    return String(value);
-  }
-  if (Array.isArray(value)) {
-    const normalizedValues = value
-      .map((entry) => Number(entry))
-      .filter((entry) => Number.isFinite(entry) && entry >= 0)
-      .slice(0, MAX_MANUAL_LESSON_PRICE_OPTIONS)
-      .map((entry) => formatFixed(entry, 2));
-    return normalizedValues.join(", ");
-  }
-  return "";
+function getPersistenceNormalizeOptions() {
+  return {
+    desiredIncomeFieldKeys: Object.keys(desiredIncomeFieldMap),
+    persistedControlsPanelCollapsedKey: PERSISTED_CONTROLS_PANEL_COLLAPSED_KEY,
+    persistedAcceptableIncomeMinKey: PERSISTED_ACCEPTABLE_INCOME_MIN_KEY,
+    persistedAcceptableIncomeMaxKey: PERSISTED_ACCEPTABLE_INCOME_MAX_KEY,
+  };
 }
 
-function normalizePersistedInputValues(values) {
-  if (!values || typeof values !== "object") {
-    return null;
+function savePersistedInputs() {
+  if (!persistenceEnabled) {
+    return;
   }
-
-  const normalized = { ...values };
-  normalized[PERSISTENCE_SCHEMA_META_KEY] = PERSISTENCE_SCHEMA_VERSION;
-
-  if (Object.prototype.hasOwnProperty.call(normalized, PERSISTED_CONTROLS_PANEL_COLLAPSED_KEY)) {
-    normalized[PERSISTED_CONTROLS_PANEL_COLLAPSED_KEY] = Boolean(normalized[PERSISTED_CONTROLS_PANEL_COLLAPSED_KEY]);
-  }
-
-  if (Object.prototype.hasOwnProperty.call(normalized, "lesson-cost")) {
-    normalized["lesson-cost"] = normalizeLessonCostPersistedValue(normalized["lesson-cost"]);
-  }
-
-  Object.keys(desiredIncomeFieldMap).forEach((key) => {
-    const netKey = `__desiredIncomeNet_${key}`;
-    if (normalized[netKey] === null || typeof normalized[netKey] === "undefined") {
-      normalized[netKey] = null;
-    } else {
-      const parsed = Number(normalized[netKey]);
-      normalized[netKey] = Number.isFinite(parsed) ? Math.max(parsed, 0) : null;
-    }
+  const saved = savePersistedInputsToStorage(captureInputValues(), {
+    normalizeOptions: getPersistenceNormalizeOptions(),
   });
-
-  const acceptableMin = Number(normalized[PERSISTED_ACCEPTABLE_INCOME_MIN_KEY]);
-  if (Number.isFinite(acceptableMin)) {
-    normalized[PERSISTED_ACCEPTABLE_INCOME_MIN_KEY] = Math.max(acceptableMin, 0);
-  } else if (
-    normalized[PERSISTED_ACCEPTABLE_INCOME_MIN_KEY] !== null &&
-    typeof normalized[PERSISTED_ACCEPTABLE_INCOME_MIN_KEY] !== "undefined"
-  ) {
-    normalized[PERSISTED_ACCEPTABLE_INCOME_MIN_KEY] = null;
+  if (!saved) {
+    persistenceEnabled = false;
+    if (rememberInputsToggle) {
+      rememberInputsToggle.checked = false;
+    }
   }
-
-  const acceptableMax = Number(normalized[PERSISTED_ACCEPTABLE_INCOME_MAX_KEY]);
-  if (Number.isFinite(acceptableMax)) {
-    normalized[PERSISTED_ACCEPTABLE_INCOME_MAX_KEY] = Math.max(acceptableMax, 0);
-  } else if (
-    normalized[PERSISTED_ACCEPTABLE_INCOME_MAX_KEY] !== null &&
-    typeof normalized[PERSISTED_ACCEPTABLE_INCOME_MAX_KEY] !== "undefined"
-  ) {
-    normalized[PERSISTED_ACCEPTABLE_INCOME_MAX_KEY] = null;
-  }
-
-  return normalized;
 }
 
-function migrateLegacyPersistenceIfNeeded() {
+function getThemeForExport() {
+  return document.body.dataset.theme === "light" ? "light" : "dark";
+}
+
+function handleExportSettings() {
   try {
-    const hasVersionedEnabled = localStorage.getItem(PERSISTENCE_ENABLED_KEY);
-    const hasVersionedValues = localStorage.getItem(PERSISTENCE_VALUES_KEY);
-    if (hasVersionedEnabled !== null || hasVersionedValues !== null) {
-      return;
-    }
-
-    const legacyEnabled = localStorage.getItem(LEGACY_PERSISTENCE_ENABLED_KEY);
-    const legacyValuesRaw = localStorage.getItem(LEGACY_PERSISTENCE_VALUES_KEY);
-
-    if (legacyValuesRaw) {
-      try {
-        const parsedLegacyValues = JSON.parse(legacyValuesRaw);
-        const normalizedLegacyValues = normalizePersistedInputValues(parsedLegacyValues);
-        if (normalizedLegacyValues) {
-          localStorage.setItem(PERSISTENCE_VALUES_KEY, JSON.stringify(normalizedLegacyValues));
-        }
-      } catch (error) {
-        // Ignore malformed legacy data.
-      }
-    }
-
-    if (legacyEnabled === "true" || legacyEnabled === "false") {
-      localStorage.setItem(PERSISTENCE_ENABLED_KEY, legacyEnabled);
-    }
+    const payload = buildDataPortabilityPayload({
+      captureInputValues,
+      persistenceEnabled,
+      theme: getThemeForExport(),
+    });
+    triggerJsonDownload(buildDataPortabilityFilename(), payload);
+    showDataPortabilityStatus("JSON export started. Keep the file safe to import your setup later.");
   } catch (error) {
-    // Ignore storage errors.
+    console.error("Unable to export settings", error);
+    showDataPortabilityStatus("Sorry, exporting the JSON file failed. Please try again.", 4000);
   }
 }
 
@@ -1682,7 +1649,6 @@ function captureInputValues(inputs = getPersistableInputs()) {
     const netValue = readDesiredIncomeNet(key, null);
     values[`__desiredIncomeNet_${key}`] = Number.isFinite(netValue) ? netValue : null;
   });
-  values[PERSISTENCE_SCHEMA_META_KEY] = PERSISTENCE_SCHEMA_VERSION;
   return values;
 }
 
@@ -1705,70 +1671,6 @@ function showDataPortabilityStatus(message, duration = 3200) {
   }
 }
 
-function getThemeForExport() {
-  return document.body.dataset.theme === "light" ? "light" : "dark";
-}
-
-function buildDataPortabilityPayload() {
-  return {
-    format: DATA_PORTABILITY_FORMAT,
-    version: DATA_PORTABILITY_VERSION,
-    exportedAt: new Date().toISOString(),
-    data: {
-      inputs: captureInputValues(),
-      persistenceEnabled,
-      theme: getThemeForExport(),
-    },
-  };
-}
-
-function triggerJsonDownload(filename, payload) {
-  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = filename;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
-}
-
-function handleExportSettings() {
-  try {
-    const payload = buildDataPortabilityPayload();
-    const timestamp = new Date().toISOString().replace(/[:]/g, "").split(".")[0];
-    const filename = `course-pricing-settings-${timestamp}.json`;
-    triggerJsonDownload(filename, payload);
-    showDataPortabilityStatus("JSON export started. Keep the file safe to import your setup later.");
-  } catch (error) {
-    console.error("Unable to export settings", error);
-    showDataPortabilityStatus("Sorry, exporting the JSON file failed. Please try again.", 4000);
-  }
-}
-
-function parseImportedPayload(text) {
-  let parsed;
-  try {
-    parsed = JSON.parse(text);
-  } catch (error) {
-    throw new Error("The selected file was not valid JSON.");
-  }
-  if (!parsed || typeof parsed !== "object") {
-    throw new Error("The selected file does not contain the expected data.");
-  }
-  if (parsed.format !== DATA_PORTABILITY_FORMAT) {
-    throw new Error("This file is not a Course Pricing Calculator export.");
-  }
-  if (typeof parsed.version !== "string") {
-    throw new Error("The export file is missing its version number.");
-  }
-  if (parsed.version !== DATA_PORTABILITY_VERSION) {
-    throw new Error(`Unsupported export version: ${parsed.version}.`);
-  }
-  return parsed;
-}
-
 function applyImportedSettings(payload) {
   const { data } = payload;
   if (!data || typeof data !== "object") {
@@ -1778,7 +1680,9 @@ function applyImportedSettings(payload) {
   if (!inputs || typeof inputs !== "object") {
     throw new Error("The export file is missing the saved inputs.");
   }
+
   applyInputValues(inputs);
+
   const usePersistence = Boolean(importedPersistenceEnabled);
   persistenceEnabled = usePersistence;
   if (rememberInputsToggle) {
@@ -1789,10 +1693,12 @@ function applyImportedSettings(payload) {
   } else {
     clearPersistedInputs();
   }
+
   if (theme === "light" || theme === "dark") {
     respectSystemPreference = false;
     applyThemePreference(theme, { save: true });
   }
+
   showDataPortabilityStatus("Settings imported. Everything has been restored from the JSON file.");
 }
 
@@ -1801,11 +1707,13 @@ function handleImportFileSelection(event) {
   if (!(input instanceof HTMLInputElement) || !input.files || !input.files.length) {
     return;
   }
+
   const [file] = input.files;
   input.value = "";
   if (!file) {
     return;
   }
+
   const reader = new FileReader();
   reader.addEventListener("load", (loadEvent) => {
     try {
@@ -1817,63 +1725,12 @@ function handleImportFileSelection(event) {
       showDataPortabilityStatus(error.message || "Sorry, importing failed. Please check the file and try again.", 5000);
     }
   });
+
   reader.addEventListener("error", () => {
     showDataPortabilityStatus("Sorry, we could not read that file. Please try again.", 4000);
   });
+
   reader.readAsText(file);
-}
-
-function readPersistenceEnabled() {
-  try {
-    const current = localStorage.getItem(PERSISTENCE_ENABLED_KEY);
-    if (current === "true" || current === "false") {
-      return current === "true";
-    }
-    return localStorage.getItem(LEGACY_PERSISTENCE_ENABLED_KEY) === "true";
-  } catch (error) {
-    return false;
-  }
-}
-
-function readPersistedValues() {
-  try {
-    const parseAndNormalize = (raw) => {
-      if (!raw) {
-        return null;
-      }
-      const parsed = JSON.parse(raw);
-      if (parsed && typeof parsed === "object") {
-        return normalizePersistedInputValues(parsed);
-      }
-      return null;
-    };
-
-    const currentRaw = localStorage.getItem(PERSISTENCE_VALUES_KEY);
-    const currentValues = parseAndNormalize(currentRaw);
-    if (currentValues) {
-      return currentValues;
-    }
-
-    const legacyRaw = localStorage.getItem(LEGACY_PERSISTENCE_VALUES_KEY);
-    const legacyValues = parseAndNormalize(legacyRaw);
-    if (legacyValues) {
-      return legacyValues;
-    }
-  } catch (error) {
-    // Ignore parsing errors
-  }
-  return null;
-}
-
-function clearPersistedInputs() {
-  try {
-    localStorage.removeItem(PERSISTENCE_VALUES_KEY);
-    localStorage.removeItem(PERSISTENCE_ENABLED_KEY);
-    localStorage.removeItem(LEGACY_PERSISTENCE_VALUES_KEY);
-    localStorage.removeItem(LEGACY_PERSISTENCE_ENABLED_KEY);
-  } catch (error) {
-    // Ignore storage errors
-  }
 }
 
 function applyInputValues(values, options = {}) {
@@ -1973,27 +1830,6 @@ function applyInputValues(values, options = {}) {
   }
 }
 
-function savePersistedInputs() {
-  if (!persistenceEnabled) {
-    return;
-  }
-  try {
-    const values = normalizePersistedInputValues(captureInputValues());
-    if (!values) {
-      return;
-    }
-    localStorage.setItem(PERSISTENCE_VALUES_KEY, JSON.stringify(values));
-    localStorage.setItem(PERSISTENCE_ENABLED_KEY, "true");
-    localStorage.removeItem(LEGACY_PERSISTENCE_VALUES_KEY);
-    localStorage.removeItem(LEGACY_PERSISTENCE_ENABLED_KEY);
-  } catch (error) {
-    persistenceEnabled = false;
-    if (rememberInputsToggle) {
-      rememberInputsToggle.checked = false;
-    }
-  }
-}
-
 function handlePersistableInputMutation(event) {
   if (event && event.target instanceof HTMLInputElement) {
     const nextBasis = TARGET_NET_BASIS_BY_INPUT_ID[event.target.id];
@@ -2007,7 +1843,7 @@ function handlePersistableInputMutation(event) {
 }
 
 function initializePersistence() {
-  migrateLegacyPersistenceIfNeeded();
+  migrateLegacyPersistenceIfNeeded({ normalizeOptions: getPersistenceNormalizeOptions() });
 
   if (rememberInputsToggle) {
     rememberInputsToggle.checked = readPersistenceEnabled();
@@ -2016,7 +1852,9 @@ function initializePersistence() {
     persistenceEnabled = false;
   }
 
-  const storedValues = persistenceEnabled ? readPersistedValues() : null;
+  const storedValues = persistenceEnabled
+    ? readPersistedValues({ normalizeOptions: getPersistenceNormalizeOptions() })
+    : null;
   if (storedValues) {
     applyInputValues(storedValues, { skipRender: true });
   }
@@ -2336,232 +2174,6 @@ window.addEventListener("resize", () => {
   }
 });
 
-function formatFixed(value, fractionDigits = 1) {
-  const fixed = value.toFixed(fractionDigits);
-  return fixed.replace(/\.0+$/, "").replace(/(\.[0-9]*[1-9])0+$/, "$1");
-}
-
-function parseNumber(value, fallback = 0, { min = -Infinity, max = Infinity } = {}) {
-  if (value === null || value === undefined) {
-    return fallback;
-  }
-  const normalized = typeof value === "string" ? value.trim() : value;
-  if (normalized === "") {
-    return fallback;
-  }
-  const parsed = Number(normalized);
-  if (!Number.isFinite(parsed)) {
-    return fallback;
-  }
-  return Math.min(Math.max(parsed, min), max);
-}
-
-function parseNumericValue(value) {
-  if (value === null || value === undefined) {
-    return null;
-  }
-  const normalized = typeof value === "string" ? value.trim() : value;
-  if (normalized === "") {
-    return null;
-  }
-  const parsed = Number(normalized);
-  return Number.isFinite(parsed) ? parsed : null;
-}
-
-function validateNumberInput(input, { fallback = 0, min = -Infinity, max = Infinity, required = true } = {}) {
-  if (!(input instanceof HTMLInputElement)) {
-    return {
-      value: fallback,
-      valid: true,
-      empty: false,
-      message: null,
-    };
-  }
-  const raw = typeof input.value === "string" ? input.value.trim() : "";
-  if (raw === "") {
-    if (required) {
-      return { value: fallback, valid: false, empty: true, message: ERROR_MESSAGE_EMPTY };
-    }
-    return { value: fallback, valid: true, empty: true, message: null };
-  }
-  const parsed = Number(raw);
-  if (!Number.isFinite(parsed)) {
-    return { value: fallback, valid: false, empty: false, message: ERROR_MESSAGE_INVALID };
-  }
-  if (parsed < min || parsed > max) {
-    return { value: fallback, valid: false, empty: false, message: ERROR_MESSAGE_INVALID };
-  }
-  return { value: parsed, valid: true, empty: false, message: null };
-}
-
-function getFieldInfoIcon(input) {
-  if (!(input instanceof HTMLElement)) {
-    return null;
-  }
-  const control = input.closest(".control");
-  return control ? control.querySelector(".info-icon") : null;
-}
-
-function getFieldErrorMessageElement(input) {
-  if (!(input instanceof HTMLInputElement) || !input.id) {
-    return null;
-  }
-  const control = input.closest(".control");
-  if (!(control instanceof HTMLElement)) {
-    return null;
-  }
-  const errorId = `${input.id}-error`;
-  const existing = document.getElementById(errorId);
-  if (existing instanceof HTMLElement && control.contains(existing)) {
-    return existing;
-  }
-  const message = document.createElement("span");
-  message.id = errorId;
-  message.className = "visually-hidden";
-  control.appendChild(message);
-  return message;
-}
-
-function applyFieldValidationA11yState(input, message) {
-  if (!(input instanceof HTMLInputElement)) {
-    return;
-  }
-
-  const hasMessage = Boolean(message);
-  input.setAttribute("aria-invalid", hasMessage ? "true" : "false");
-
-  if (input.dataset.validationBaseDescribedby === undefined) {
-    input.dataset.validationBaseDescribedby = input.getAttribute("aria-describedby") || "";
-  }
-
-  const messageElement = getFieldErrorMessageElement(input);
-  if (messageElement) {
-    messageElement.textContent = hasMessage ? message : "";
-  }
-
-  const baseIds = (input.dataset.validationBaseDescribedby || "")
-    .split(/\s+/)
-    .map((id) => id.trim())
-    .filter(Boolean);
-
-  if (hasMessage && messageElement) {
-    if (!baseIds.includes(messageElement.id)) {
-      baseIds.push(messageElement.id);
-    }
-    input.setAttribute("aria-describedby", baseIds.join(" "));
-    input.setAttribute("aria-errormessage", messageElement.id);
-  } else {
-    if (baseIds.length) {
-      input.setAttribute("aria-describedby", baseIds.join(" "));
-    } else {
-      input.removeAttribute("aria-describedby");
-    }
-    input.removeAttribute("aria-errormessage");
-  }
-}
-
-function applyFieldValidationState(input, message) {
-  if (!(input instanceof HTMLInputElement)) {
-    return;
-  }
-  if (message) {
-    input.classList.add(FIELD_ERROR_CLASS);
-  } else {
-    input.classList.remove(FIELD_ERROR_CLASS);
-  }
-  applyFieldValidationA11yState(input, message);
-  const infoIcon = getFieldInfoIcon(input);
-  if (infoIcon) {
-    if (message) {
-      infoIcon.classList.add(INFO_ICON_ERROR_CLASS);
-      infoIcon.dataset.tooltipError = message;
-    } else {
-      infoIcon.classList.remove(INFO_ICON_ERROR_CLASS);
-      delete infoIcon.dataset.tooltipError;
-    }
-    renderInfoIconTooltip(infoIcon);
-  }
-}
-
-function updateInputValueIfAllowed(input, result, value, { allowEmpty = false, force = false } = {}) {
-  if (!(input instanceof HTMLInputElement)) {
-    return;
-  }
-  if (input.dataset.editing === "true") {
-    return;
-  }
-  if (!force && input.classList.contains(FIELD_ERROR_CLASS)) {
-    return;
-  }
-  if (result?.empty && allowEmpty) {
-    return;
-  }
-  input.value = value;
-}
-
-function getCurrentTaxRate() {
-  const percent = Math.min(Math.max(parseNumber(controls.taxRate?.value, 40), 0), 99.9);
-  return percent / 100;
-}
-
-function parseManualLessonPriceList(rawValue, { maxCount = MAX_MANUAL_LESSON_PRICE_OPTIONS } = {}) {
-  const raw = rawValue === null || rawValue === undefined ? "" : String(rawValue).trim();
-
-  if (!raw) {
-    return {
-      values: [],
-      valid: true,
-      empty: true,
-      message: null,
-    };
-  }
-
-  const rawTokens = raw.split(",");
-  const tokens = [];
-  for (const token of rawTokens) {
-    const normalizedToken = token.trim();
-    if (!normalizedToken) {
-      return {
-        values: [],
-        valid: false,
-        empty: false,
-        message: ERROR_MESSAGE_LESSON_PRICE_LIST_FORMAT,
-      };
-    }
-    tokens.push(normalizedToken);
-  }
-
-  if (tokens.length > maxCount) {
-    return {
-      values: [],
-      valid: false,
-      empty: false,
-      message: ERROR_MESSAGE_LESSON_PRICE_LIST_MAX,
-    };
-  }
-
-  const values = [];
-  for (const token of tokens) {
-    const parsed = Number(token);
-    if (!Number.isFinite(parsed) || parsed < 0) {
-      return {
-        values: [],
-        valid: false,
-        empty: false,
-        message: ERROR_MESSAGE_LESSON_PRICE_LIST_FORMAT,
-      };
-    }
-    values.push(parsed);
-  }
-
-  return {
-    values,
-    valid: true,
-    empty: false,
-    message: null,
-  };
-}
-
 function parseList(value) {
   if (!value) {
     return [];
@@ -2666,13 +2278,13 @@ function syncTimeOffFields(source) {
     const weeksValue = parseNumericValue(weeksInput.value);
     if (Number.isFinite(weeksValue) && weeksValue >= 0 && weeksValue <= WEEKS_PER_YEAR) {
       const monthsValue = (weeksValue / WEEKS_PER_YEAR) * MONTHS_PER_YEAR;
-      updateInputValueIfAllowed(monthsInput, null, formatFixed(monthsValue, 2), { force: true });
+      updateInputValueIfAllowedWithValidationClass(monthsInput, null, formatFixed(monthsValue, 2), { force: true });
     }
   } else {
     const monthsValue = parseNumericValue(monthsInput.value);
     if (Number.isFinite(monthsValue) && monthsValue >= 0 && monthsValue <= MONTHS_PER_YEAR) {
       const weeksValue = (monthsValue / MONTHS_PER_YEAR) * WEEKS_PER_YEAR;
-      updateInputValueIfAllowed(weeksInput, null, formatFixed(weeksValue, 2), { force: true });
+      updateInputValueIfAllowedWithValidationClass(weeksInput, null, formatFixed(weeksValue, 2), { force: true });
     }
   }
   timeOffSyncActive = false;
@@ -2745,379 +2357,44 @@ Object.entries(fixedCostFields).forEach(([key, fieldSet]) => {
   }
 });
 
-function getInputs() {
-  Object.entries(desiredIncomeFieldMap).forEach(([key, field]) => {
-    const isActiveBasis = targetNetBasis === key;
-    if (isActiveBasis && isInputEditing(field)) {
-      // Keep active desired-income fields editable while typing; validate on commit.
-      applyFieldValidationState(field, null);
-      return;
-    }
-    const required = isActiveBasis;
-    const state = validateNumberInput(field, { fallback: TARGET_NET_DEFAULT, min: 0, required });
-    applyFieldValidationState(field, state.message);
-  });
 
-  const monthsOffState = validateNumberInput(controls.monthsOff, {
-    fallback: DEFAULT_MONTHS_OFF,
-    min: 0,
-    max: MONTHS_PER_YEAR,
-    required: true,
-  });
-  const weeksOffYearState = validateNumberInput(controls.weeksOffYear, {
-    fallback: DEFAULT_WEEKS_OFF_YEAR,
-    min: 0,
-    max: WEEKS_PER_YEAR,
-    required: true,
-  });
-  const weeksOffCycleState = validateNumberInput(controls.weeksOffCycle, {
-    fallback: 1,
-    min: 0,
-    max: 4,
-    required: true,
-  });
-  const daysOffWeekState = validateNumberInput(controls.daysOffWeek, {
-    fallback: 2,
-    min: 0,
-    max: BASE_WORK_DAYS_PER_WEEK,
-    required: true,
-  });
-
-  applyFieldValidationState(controls.monthsOff, monthsOffState.message);
-  applyFieldValidationState(controls.weeksOffYear, weeksOffYearState.message);
-  applyFieldValidationState(controls.weeksOffCycle, weeksOffCycleState.message);
-  applyFieldValidationState(controls.daysOffWeek, daysOffWeekState.message);
-
-  let monthsOff = monthsOffState.value;
-  let weeksOffYear = weeksOffYearState.value;
-  if (timeOffSyncSource === "weeks" && weeksOffYearState.valid) {
-    monthsOff = (weeksOffYearState.value / WEEKS_PER_YEAR) * MONTHS_PER_YEAR;
-  } else if (timeOffSyncSource === "months" && monthsOffState.valid) {
-    weeksOffYear = (monthsOffState.value / MONTHS_PER_YEAR) * WEEKS_PER_YEAR;
-  } else if (monthsOffState.valid) {
-    weeksOffYear = (monthsOffState.value / MONTHS_PER_YEAR) * WEEKS_PER_YEAR;
-  } else if (weeksOffYearState.valid) {
-    monthsOff = (weeksOffYearState.value / WEEKS_PER_YEAR) * MONTHS_PER_YEAR;
-  }
-
-  const weeksOffPerCycle = weeksOffCycleState.value;
-  const daysOffPerWeek = daysOffWeekState.value;
-
-  const taxRateState = validateNumberInput(controls.taxRate, {
-    fallback: 40,
-    min: 0,
-    max: 99.9,
-    required: true,
-  });
-  applyFieldValidationState(controls.taxRate, taxRateState.message);
-
-  const taxRatePercent = taxRateState.value;
-  const taxRate = taxRatePercent / 100;
-  if (desiredIncomeLockedAsGross) {
-    synchronizeLockedDesiredIncomeNetValues(taxRate);
-  }
-
-  Object.values(fixedCostFields).forEach((fieldSet) => {
-    if (fieldSet.monthly instanceof HTMLInputElement) {
-      const state = validateNumberInput(fieldSet.monthly, { fallback: 0, min: 0, required: false });
-      applyFieldValidationState(fieldSet.monthly, state.message);
-    }
-    if (fieldSet.annual instanceof HTMLInputElement) {
-      const state = validateNumberInput(fieldSet.annual, { fallback: 0, min: 0, required: false });
-      applyFieldValidationState(fieldSet.annual, state.message);
-    }
-  });
-
-  const fixedCosts = updateFixedCostTotalDisplay();
-  const variableCostPerClassState = validateNumberInput(controls.variableCostPerClass, {
-    fallback: 0,
-    min: 0,
-    required: false,
-  });
-  const variableCostPerStudentState = validateNumberInput(controls.variableCostPerStudent, {
-    fallback: 0,
-    min: 0,
-    required: false,
-  });
-  const variableCostPerStudentMonthlyState = validateNumberInput(controls.variableCostPerStudentMonthly, {
-    fallback: 0,
-    min: 0,
-    required: false,
-  });
-  const vatRateState = validateNumberInput(controls.vatRate, {
-    fallback: 21,
-    min: 0,
-    max: 99.9,
-    required: true,
-  });
-  applyFieldValidationState(controls.variableCostPerClass, variableCostPerClassState.message);
-  applyFieldValidationState(controls.variableCostPerStudent, variableCostPerStudentState.message);
-  applyFieldValidationState(controls.variableCostPerStudentMonthly, variableCostPerStudentMonthlyState.message);
-  applyFieldValidationState(controls.vatRate, vatRateState.message);
-
-  const variableCostPerClass = Math.max(variableCostPerClassState.value, 0);
-  const variableCostPerStudent = Math.max(variableCostPerStudentState.value, 0);
-  const variableCostPerStudentMonthly = Math.max(variableCostPerStudentMonthlyState.value, 0);
-  const vatRate = Math.max(vatRateState.value, 0) / 100;
-  const classesPerWeek = parseList(controls.classesPerWeek.value);
-  const studentsPerClass = parseList(controls.studentsPerClass.value);
-  const hoursPerLessonState = validateNumberInput(controls.hoursPerLesson, {
-    fallback: 1,
-    min: 0.25,
-    max: 12,
-    required: true,
-  });
-  const bufferState = validateNumberInput(controls.buffer, {
-    fallback: 15,
-    min: 0,
-    max: 99.9,
-    required: true,
-  });
-  applyFieldValidationState(controls.hoursPerLesson, hoursPerLessonState.message);
-  applyFieldValidationState(controls.buffer, bufferState.message);
-
-  const hoursPerLesson = Math.max(hoursPerLessonState.value, 0.25);
-  const bufferPercent = Math.max(bufferState.value, 0);
-  const buffer = bufferPercent / 100;
-  const currencySymbol = controls.currencySymbol.value.trim() || "€";
-  const lessonCostListState = parseManualLessonPriceList(controls.lessonCost?.value);
-  const lessonPriceMinState = validateNumberInput(controls.lessonPriceMin, {
-    fallback: null,
-    min: 0,
-    required: false,
-  });
-  const lessonPriceMaxState = validateNumberInput(controls.lessonPriceMax, {
-    fallback: null,
-    min: 0,
-    required: false,
-  });
-  applyFieldValidationState(controls.lessonCost, lessonCostListState.message);
-  applyFieldValidationState(controls.lessonPriceMin, lessonPriceMinState.message);
-  applyFieldValidationState(controls.lessonPriceMax, lessonPriceMaxState.message);
-
-  const lessonCostInclVatOptions = lessonCostListState.valid ? lessonCostListState.values : [];
-  const lessonCostInclVat = lessonCostInclVatOptions.length ? lessonCostInclVatOptions[0] : null;
-  let lessonPriceMin = lessonPriceMinState.valid && !lessonPriceMinState.empty ? lessonPriceMinState.value : null;
-  let lessonPriceMax = lessonPriceMaxState.valid && !lessonPriceMaxState.empty ? lessonPriceMaxState.value : null;
-
-  if (lessonPriceMin != null && lessonPriceMax != null && lessonPriceMin > lessonPriceMax) {
-    const lessonPriceMinMessage = [lessonPriceMinState.message, ERROR_MESSAGE_RANGE_ORDER].filter(Boolean).join(" ");
-    const lessonPriceMaxMessage = [lessonPriceMaxState.message, ERROR_MESSAGE_RANGE_ORDER].filter(Boolean).join(" ");
-    applyFieldValidationState(controls.lessonPriceMin, lessonPriceMinMessage);
-    applyFieldValidationState(controls.lessonPriceMax, lessonPriceMaxMessage);
-    lessonPriceMin = null;
-    lessonPriceMax = null;
-  }
-
-  if (controls.acceptableIncomeMin instanceof HTMLInputElement) {
-    const state = validateNumberInput(controls.acceptableIncomeMin, {
-      fallback: 0,
-      min: 0,
-      required: false,
-    });
-    applyFieldValidationState(controls.acceptableIncomeMin, state.message);
-  }
-  if (controls.acceptableIncomeMax instanceof HTMLInputElement) {
-    const state = validateNumberInput(controls.acceptableIncomeMax, {
-      fallback: 0,
-      min: 0,
-      required: false,
-    });
-    applyFieldValidationState(controls.acceptableIncomeMax, state.message);
-  }
-
-  const activeMonthShare = Math.min(Math.max((12 - monthsOff) / 12, 0), 1);
-  const activeMonths = 12 * activeMonthShare;
-  const weeksShare = Math.min(Math.max((4 - weeksOffPerCycle) / 4, 0), 1);
-  const workingWeeks = WEEKS_PER_YEAR * activeMonthShare * weeksShare;
-  const workingDaysPerWeek = Math.max(0, Math.min(BASE_WORK_DAYS_PER_WEEK, BASE_WORK_DAYS_PER_WEEK - daysOffPerWeek));
-  const workingDaysPerYear = workingWeeks * workingDaysPerWeek;
-
-  lastActiveMonths = activeMonths;
-  lastWorkingWeeks = workingWeeks;
-  if (desiredIncomeLockedAsGross) {
-    synchronizeLockedAcceptableIncomeNetValues(taxRate, activeMonths);
-  }
-
-  const defaultTargetNetWeek = workingWeeks > 0 ? TARGET_NET_DEFAULT / workingWeeks : TARGET_NET_DEFAULT;
-  const defaultTargetNetMonth = activeMonths > 0 ? TARGET_NET_DEFAULT / activeMonths : TARGET_NET_DEFAULT;
-  const defaultTargetNetAverageWeek = TARGET_NET_DEFAULT / WEEKS_PER_YEAR;
-  const defaultTargetNetAverageMonth = TARGET_NET_DEFAULT / MONTHS_PER_YEAR;
-
-  const storedYearNet = readDesiredIncomeNet("year", null);
-  const storedWeekNet = readDesiredIncomeNet("week", null);
-  const storedMonthNet = readDesiredIncomeNet("month", null);
-  const storedAvgWeekNet = readDesiredIncomeNet("avgWeek", null);
-  const storedAvgMonthNet = readDesiredIncomeNet("avgMonth", null);
-
-  const netYearValue = Number.isFinite(storedYearNet) ? Math.max(storedYearNet, 0) : TARGET_NET_DEFAULT;
-  const netWeekValue = Number.isFinite(storedWeekNet) ? Math.max(storedWeekNet, 0) : defaultTargetNetWeek;
-  const netMonthValue = Number.isFinite(storedMonthNet) ? Math.max(storedMonthNet, 0) : defaultTargetNetMonth;
-  const netAvgWeekValue = Number.isFinite(storedAvgWeekNet) ? Math.max(storedAvgWeekNet, 0) : defaultTargetNetAverageWeek;
-  const netAvgMonthValue = Number.isFinite(storedAvgMonthNet) ? Math.max(storedAvgMonthNet, 0) : defaultTargetNetAverageMonth;
-
-  const hasWorkingWeeks = workingWeeks > 0;
-  const hasActiveMonths = activeMonths > 0;
-
-  let targetNet;
-  if (targetNetBasis === "week") {
-    targetNet = hasWorkingWeeks ? netWeekValue * workingWeeks : netYearValue;
-  } else if (targetNetBasis === "month") {
-    targetNet = hasActiveMonths ? netMonthValue * activeMonths : netYearValue;
-  } else if (targetNetBasis === "avgWeek") {
-    targetNet = netAvgWeekValue * WEEKS_PER_YEAR;
-  } else if (targetNetBasis === "avgMonth") {
-    targetNet = netAvgMonthValue * MONTHS_PER_YEAR;
-  } else {
-    targetNet = netYearValue;
-  }
-
-  targetNet = Number.isFinite(targetNet) ? Math.max(targetNet, 0) : TARGET_NET_DEFAULT;
-
-  const targetNetPerWeek = hasWorkingWeeks ? targetNet / workingWeeks : null;
-  const targetNetPerMonth = hasActiveMonths ? targetNet / activeMonths : null;
-  const targetNetAveragePerWeek = targetNet / WEEKS_PER_YEAR;
-  const targetNetAveragePerMonth = targetNet / MONTHS_PER_YEAR;
-
-  const derivedNetValues = {
-    year: targetNet,
-    week: targetNetPerWeek,
-    month: targetNetPerMonth,
-    avgWeek: targetNetAveragePerWeek,
-    avgMonth: targetNetAveragePerMonth,
-  };
-
-  Object.entries(derivedNetValues).forEach(([key, value]) => {
-    if (key === targetNetBasis) {
-      const activeField = getDesiredIncomeField(key);
-      const activeRaw = activeField && typeof activeField.value === "string" ? activeField.value.trim() : "";
-      const shouldBackfillActive = !isInputEditing(activeField) && activeRaw !== "";
-      if (!Number.isFinite(readDesiredIncomeNet(key, null)) && Number.isFinite(value) && shouldBackfillActive) {
-        writeDesiredIncomeNet(key, value);
-      }
-      return;
-    }
-    if (Number.isFinite(value)) {
-      writeDesiredIncomeNet(key, value);
-    } else {
-      writeDesiredIncomeNet(key, null);
-    }
-  });
-
-  refreshDesiredIncomeDisplay(derivedNetValues, taxRate);
-  refreshAcceptableIncomeDisplay(taxRate);
-
-  updateInputValueIfAllowed(controls.taxRate, taxRateState, formatFixed(taxRate * 100, 1));
-  if (controls.fixedCosts instanceof HTMLInputElement) {
-    controls.fixedCosts.value = formatFixed(fixedCosts, 2);
-  }
-  updateInputValueIfAllowed(controls.variableCostPerClass, variableCostPerClassState, formatFixed(variableCostPerClass, 2));
-  updateInputValueIfAllowed(controls.variableCostPerStudent, variableCostPerStudentState, formatFixed(variableCostPerStudent, 2));
-  updateInputValueIfAllowed(
-    controls.variableCostPerStudentMonthly,
-    variableCostPerStudentMonthlyState,
-    formatFixed(variableCostPerStudentMonthly, 2),
-  );
-  updateInputValueIfAllowed(controls.vatRate, vatRateState, formatFixed(vatRate * 100, 1));
-  updateInputValueIfAllowed(controls.hoursPerLesson, hoursPerLessonState, formatFixed(hoursPerLesson, 2));
-  updateInputValueIfAllowed(
-    controls.lessonPriceMin,
-    lessonPriceMinState,
-    lessonPriceMin == null || !Number.isFinite(lessonPriceMin) ? "" : formatFixed(lessonPriceMin, 2),
-    { allowEmpty: true },
-  );
-  updateInputValueIfAllowed(
-    controls.lessonPriceMax,
-    lessonPriceMaxState,
-    lessonPriceMax == null || !Number.isFinite(lessonPriceMax) ? "" : formatFixed(lessonPriceMax, 2),
-    { allowEmpty: true },
-  );
-  updateInputValueIfAllowed(controls.monthsOff, monthsOffState, formatFixed(monthsOff, 2));
-  updateInputValueIfAllowed(controls.weeksOffYear, weeksOffYearState, formatFixed(weeksOffYear, 2));
-  updateInputValueIfAllowed(controls.weeksOffCycle, weeksOffCycleState, formatFixed(weeksOffPerCycle, 2));
-  updateInputValueIfAllowed(controls.daysOffWeek, daysOffWeekState, formatFixed(daysOffPerWeek, 2));
-  updateInputValueIfAllowed(controls.buffer, bufferState, formatFixed(buffer * 100, 1));
-  if (controls.currencySymbol instanceof HTMLInputElement && controls.currencySymbol.dataset.editing !== "true") {
-    controls.currencySymbol.value = currencySymbol;
-  }
-  controls.workingWeeksDisplay.textContent = formatFixed(workingWeeks, 2);
-  controls.workingDaysDisplay.textContent = formatFixed(workingDaysPerYear, 2);
-
+function buildCalculationsContext() {
   return {
-    targetNet,
-    targetNetPerWeek,
-    targetNetPerMonth,
-    targetNetAveragePerWeek,
-    targetNetAveragePerMonth,
-    taxRate,
-    fixedCosts,
-    variableCostPerClass,
-    variableCostPerStudent,
-    variableCostPerStudentMonthly,
-    vatRate,
-    classesPerWeek,
-    studentsPerClass,
-    hoursPerLesson,
-    lessonCostInclVat,
-    lessonCostInclVatOptions,
-    lessonPriceMin,
-    lessonPriceMax,
-    workingWeeks,
-    buffer,
-    bufferPercent,
-    currencySymbol,
-    monthsOff,
-    weeksOffYear,
-    weeksOffPerCycle,
-    daysOffPerWeek,
-    workingDaysPerWeek,
-    workingDaysPerYear,
-    activeMonths,
-    activeMonthShare,
-    weeksShare,
+    desiredIncomeFieldMap,
+    targetNetBasis,
+    isInputEditing,
+    applyFieldValidationState,
+    fieldValidationOptions,
+    validateNumberInput,
+    TARGET_NET_DEFAULT,
+    DEFAULT_MONTHS_OFF,
+    MONTHS_PER_YEAR,
+    DEFAULT_WEEKS_OFF_YEAR,
+    WEEKS_PER_YEAR,
+    BASE_WORK_DAYS_PER_WEEK,
+    timeOffSyncSource,
+    desiredIncomeLockedAsGross,
+    synchronizeLockedDesiredIncomeNetValues,
+    fixedCostFields,
+    updateFixedCostTotalDisplay,
+    parseList,
+    parseManualLessonPrices,
+    ERROR_MESSAGE_RANGE_ORDER,
+    synchronizeLockedAcceptableIncomeNetValues,
+    setLastActiveMonths: (value) => {
+      lastActiveMonths = value;
+    },
+    setLastWorkingWeeks: (value) => {
+      lastWorkingWeeks = value;
+    },
+    readDesiredIncomeNet,
+    getDesiredIncomeField,
+    writeDesiredIncomeNet,
+    refreshDesiredIncomeDisplay,
+    refreshAcceptableIncomeDisplay,
+    updateInputValueIfAllowedWithValidationClass,
+    formatFixed,
   };
-}
-
-function formatCurrency(symbol, value) {
-  if (!Number.isFinite(value)) {
-    return `${symbol}0`;
-  }
-  const rounded = Math.round(value);
-  const formatted = numberFormatter.format(Math.abs(rounded));
-  return rounded < 0 ? `-${symbol}${formatted}` : `${symbol}${formatted}`;
-}
-
-function formatCurrencyDetailed(symbol, value, digits = 2) {
-  if (!Number.isFinite(value)) {
-    return `${symbol}0.00`;
-  }
-  const absolute = Math.abs(value);
-  const formatted = absolute.toLocaleString(undefined, {
-    minimumFractionDigits: digits,
-    maximumFractionDigits: digits,
-  });
-  return value < 0 ? `-${symbol}${formatted}` : `${symbol}${formatted}`;
-}
-
-function formatCurrencyOrDash(symbol, value, digits = 2) {
-  return Number.isFinite(value) ? formatCurrencyDetailed(symbol, value, digits) : "—";
-}
-
-function formatNumberValue(value, maximumFractionDigits = 2) {
-  if (!Number.isFinite(value)) {
-    return "—";
-  }
-  return value.toLocaleString(undefined, {
-    minimumFractionDigits: 0,
-    maximumFractionDigits,
-  });
-}
-
-function escapeHtml(value) {
-  if (value === null || value === undefined) {
-    return "";
-  }
-  return String(value).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 }
 
 function cloneInputs(inputs) {
@@ -3182,488 +2459,6 @@ function formatBreakdownCurrency(value) {
   return Number.isFinite(value) ? formatCurrency(latestCurrencySymbol, value) : "—";
 }
 
-function findBestPricingCombination(studentsTarget, classesPerWeekTarget, pricingData = latestPricingData) {
-  if (!Array.isArray(pricingData) || !pricingData.length) {
-    return null;
-  }
-
-  const tolerance = 1e-6;
-  let bestMatch = null;
-  let bestScore = Infinity;
-
-  pricingData.forEach((row) => {
-    if (!row || !Array.isArray(row.columns)) {
-      return;
-    }
-    const studentsValue = Number.isFinite(row.students) ? row.students : null;
-    row.columns.forEach((column) => {
-      if (!column) {
-        return;
-      }
-      const classesValue = Number.isFinite(column.classesPerWeek) ? column.classesPerWeek : null;
-      if (studentsValue === null || classesValue === null) {
-        return;
-      }
-      const studentDiff = Math.abs(studentsValue - studentsTarget);
-      const classDiff = Math.abs(classesValue - classesPerWeekTarget);
-      const score = studentDiff + classDiff / 10;
-      if (score < bestScore) {
-        bestScore = score;
-        bestMatch = {
-          row,
-          column,
-          studentDiff,
-          classDiff,
-        };
-      }
-    });
-  });
-
-  if (!bestMatch) {
-    return null;
-  }
-
-  return {
-    row: bestMatch.row,
-    column: bestMatch.column,
-    exactStudents: bestMatch.studentDiff < tolerance,
-    exactClasses: bestMatch.classDiff < tolerance,
-  };
-}
-
-function buildAccountingReport({
-  studentsRequested,
-  classesPerWeekRequested,
-  hoursPerClassRequested,
-  combination,
-  inputs,
-  currencySymbol,
-  pricingMode,
-  bufferPercent,
-  bufferedMonthlyNet,
-}) {
-  if (!combination || !combination.row || !combination.column) {
-    return null;
-  }
-
-  const { row, column, exactStudents, exactClasses } = combination;
-  const breakdown = column.base && column.base.breakdown ? column.base.breakdown : null;
-
-  if (!breakdown || !breakdown.perLesson || !breakdown.totals) {
-    return null;
-  }
-
-  const totals = breakdown.totals;
-  const studentsUsed = Number.isFinite(row.students) ? row.students : studentsRequested;
-  const classesPerWeekUsed = Number.isFinite(column.classesPerWeek) ? column.classesPerWeek : classesPerWeekRequested;
-  const workingWeeks = Number.isFinite(inputs?.workingWeeks) ? inputs.workingWeeks : 0;
-  const activeMonths = Number.isFinite(inputs?.activeMonths) && inputs.activeMonths > 0 ? inputs.activeMonths : MONTHS_PER_YEAR;
-  const classesPerYear = Number.isFinite(column.classesPerYear) ? column.classesPerYear : classesPerWeekUsed * workingWeeks;
-  const classesPerMonth = activeMonths > 0 ? classesPerYear / activeMonths : 0;
-  const hoursPerClass = Number.isFinite(hoursPerClassRequested) ? hoursPerClassRequested : inputs?.hoursPerLesson;
-  const weeklyHours = Number.isFinite(hoursPerClass) ? hoursPerClass * classesPerWeekUsed : null;
-  const monthlyHours = Number.isFinite(hoursPerClass) ? hoursPerClass * classesPerMonth : null;
-
-  const revenuePerLessonInclVat = Number.isFinite(totals.priceInclVatPerLesson)
-    ? totals.priceInclVatPerLesson
-    : totals.priceInclVatPerStudent * studentsUsed;
-  const revenuePerLessonExVat = Number.isFinite(totals.priceExVatPerLesson)
-    ? totals.priceExVatPerLesson
-    : totals.priceExVatPerStudent * studentsUsed;
-  const monthlyRevenueInclVat = revenuePerLessonInclVat * classesPerMonth;
-  const monthlyRevenueExVat = revenuePerLessonExVat * classesPerMonth;
-  const monthlyVat = monthlyRevenueInclVat - monthlyRevenueExVat;
-
-  const variableCostPerClass = Number.isFinite(inputs?.variableCostPerClass) ? inputs.variableCostPerClass : 0;
-  const variableCostPerStudent = Number.isFinite(inputs?.variableCostPerStudent) ? inputs.variableCostPerStudent : 0;
-  const variableCostPerStudentMonthly = Number.isFinite(inputs?.variableCostPerStudentMonthly) ? inputs.variableCostPerStudentMonthly : 0;
-  const monthlyVariableClass = variableCostPerClass * classesPerMonth;
-  const monthlyVariableStudent = variableCostPerStudent * studentsUsed * classesPerMonth;
-  const monthlyVariableStudentMonthly = variableCostPerStudentMonthly * studentsUsed;
-  const monthlyVariableTotal = monthlyVariableClass + monthlyVariableStudent + monthlyVariableStudentMonthly;
-  const perLessonVariableClass = variableCostPerClass;
-  const perLessonVariableStudent = variableCostPerStudent * studentsUsed;
-  const perLessonVariableMonthly = classesPerMonth > 0 ? monthlyVariableStudentMonthly / classesPerMonth : 0;
-
-  const fixedCosts = Number.isFinite(inputs?.fixedCosts) ? inputs.fixedCosts : 0;
-  const monthlyFixedCosts = activeMonths > 0 ? fixedCosts / activeMonths : 0;
-  const perLessonFixed = classesPerMonth > 0 ? monthlyFixedCosts / classesPerMonth : 0;
-
-  const taxRate = Number.isFinite(inputs?.taxRate) ? inputs.taxRate : 0;
-  const profitBeforeTax = monthlyRevenueExVat - monthlyVariableTotal - monthlyFixedCosts;
-  const monthlyIncomeTax = profitBeforeTax > 0 ? profitBeforeTax * taxRate : 0;
-  const perLessonIncomeTax = classesPerMonth > 0 ? monthlyIncomeTax / classesPerMonth : 0;
-  const monthlyNetIncome = profitBeforeTax - monthlyIncomeTax;
-  const perLessonNetIncome = classesPerMonth > 0 ? monthlyNetIncome / classesPerMonth : 0;
-
-  const perLessonVat = classesPerMonth > 0 ? monthlyVat / classesPerMonth : 0;
-  const perLessonOutgoings =
-    perLessonVat + perLessonVariableClass + perLessonVariableStudent + perLessonVariableMonthly + perLessonFixed + perLessonIncomeTax;
-  const monthlyOutgoings =
-    monthlyVat + monthlyVariableClass + monthlyVariableStudent + monthlyVariableStudentMonthly + monthlyFixedCosts + monthlyIncomeTax;
-
-  const netMargin = monthlyRevenueExVat > 0 ? (monthlyNetIncome / monthlyRevenueExVat) * 100 : null;
-  const effectiveHourlyNet = Number.isFinite(monthlyHours) && monthlyHours > 0 ? monthlyNetIncome / monthlyHours : null;
-  const effectiveHourlyGross = Number.isFinite(monthlyHours) && monthlyHours > 0 ? monthlyRevenueInclVat / monthlyHours : null;
-  const approxWeeksPerActiveMonth = activeMonths > 0 && Number.isFinite(workingWeeks) ? workingWeeks / activeMonths : 0;
-
-  const currency = typeof currencySymbol === "string" && currencySymbol.trim() !== "" ? currencySymbol : "€";
-  const now = new Date();
-  const generatedDisplay = now.toLocaleString(undefined, {
-    dateStyle: "long",
-    timeStyle: "short",
-  });
-
-  const notes = [];
-  if (!exactStudents && Number.isFinite(studentsRequested)) {
-    notes.push(
-      `Requested ${formatNumberValue(studentsRequested, 2)} students; closest available combination uses ${formatNumberValue(studentsUsed, 2)}.`,
-    );
-  }
-  if (!exactClasses && Number.isFinite(classesPerWeekRequested)) {
-    notes.push(
-      `Requested ${formatNumberValue(classesPerWeekRequested, 2)} classes per week; closest available combination uses ${formatNumberValue(classesPerWeekUsed, 2)}.`,
-    );
-  }
-
-  if (pricingMode === PRICING_MODE_TARGET) {
-    if (Number.isFinite(bufferPercent) && bufferPercent > 0 && Number.isFinite(bufferedMonthlyNet)) {
-      notes.push(
-        `Buffered shortfall scenario (${formatFixed(bufferPercent, 1)}% attendance loss) projects ${formatCurrencyOrDash(currency, bufferedMonthlyNet)} net per month.`,
-      );
-    } else {
-      notes.push("Report reflects the base pricing scenario that meets your net income target.");
-    }
-  } else {
-    const manualLessonPriceCount = Array.isArray(inputs?.lessonCostInclVatOptions)
-      ? inputs.lessonCostInclVatOptions.filter((value) => Number.isFinite(value) && value >= 0).length
-      : 0;
-    notes.push(
-      manualLessonPriceCount > 1
-        ? "Report uses the first manual lesson price from your comma-separated list."
-        : "Report uses the manual lesson price you entered.",
-    );
-  }
-
-  const notesMarkup = notes.length
-    ? `<section class="report-section">
-            <h2>Notes</h2>
-            <ul class="report-list">${notes.map((note) => `<li>${escapeHtml(note)}</li>`).join("")}</ul>
-          </section>`
-    : "";
-
-  const summaryItems = [
-    { label: "Students per class", value: formatNumberValue(studentsUsed, 2) },
-    { label: "Classes per week", value: formatNumberValue(classesPerWeekUsed, 2) },
-    { label: "Classes per active month", value: formatNumberValue(classesPerMonth, 2) },
-    { label: "Hours per class", value: formatNumberValue(hoursPerClass, 2) },
-    { label: "Teaching hours / week", value: formatNumberValue(weeklyHours, 2) },
-    { label: "Teaching hours / month", value: formatNumberValue(monthlyHours, 2) },
-    { label: "Active months / year", value: formatNumberValue(activeMonths, 2) },
-    { label: "Working weeks / active month", value: formatNumberValue(approxWeeksPerActiveMonth, 2) },
-    { label: "VAT rate", value: `${formatFixed((inputs?.vatRate ?? 0) * 100, 1)}%` },
-    { label: "Income tax rate", value: `${formatFixed(taxRate * 100, 1)}%` },
-  ];
-
-  const summaryMarkup = summaryItems
-    .map(
-      (item) => `
-          <div class="summary-item">
-            <span class="summary-label">${escapeHtml(item.label)}</span>
-            <span class="summary-value">${escapeHtml(item.value)}</span>
-          </div>
-        `,
-    )
-    .join("");
-
-  const currencyEscaped = escapeHtml(currency);
-
-  const html = `<!DOCTYPE html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Monthly accounting breakdown</title>
-    <style>
-      :root {
-        color-scheme: light;
-      }
-      body {
-        margin: 0;
-        font-family: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
-        background: #f4f6fc;
-        color: #111827;
-        padding: 32px 16px;
-      }
-      .report {
-        max-width: 960px;
-        margin: 0 auto;
-        background: #ffffff;
-        border-radius: 20px;
-        box-shadow: 0 30px 55px rgba(15, 23, 42, 0.12);
-        padding: clamp(24px, 4vw, 40px);
-      }
-      .report-header {
-        display: flex;
-        justify-content: space-between;
-        gap: 24px;
-        flex-wrap: wrap;
-      }
-      .report-header h1 {
-        margin: 0 0 8px;
-        font-size: clamp(1.6rem, 2.8vw, 2.3rem);
-      }
-      .report-subtitle {
-        margin: 0;
-        color: #4b5563;
-        font-size: 1rem;
-      }
-      .report-meta {
-        min-width: 220px;
-        background: #f1f5f9;
-        border-radius: 16px;
-        padding: 16px 18px;
-        font-size: 0.95rem;
-        color: #1f2937;
-      }
-      .report-meta p {
-        margin: 0 0 6px;
-      }
-      .report-meta span {
-        display: block;
-        color: #64748b;
-        font-size: 0.85rem;
-      }
-      .summary-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-        gap: 18px;
-        margin-top: 20px;
-      }
-      .summary-item {
-        background: #f8fafc;
-        border-radius: 16px;
-        padding: 14px 16px;
-      }
-      .summary-label {
-        display: block;
-        color: #6b7280;
-        font-size: 0.85rem;
-      }
-      .summary-value {
-        display: block;
-        font-weight: 600;
-        margin-top: 4px;
-        font-size: 1.05rem;
-      }
-      .report-section {
-        margin-top: 32px;
-      }
-      .report-section h2 {
-        margin: 0 0 12px;
-        font-size: 1.3rem;
-      }
-      table {
-        width: 100%;
-        border-collapse: collapse;
-        background: #ffffff;
-        border-radius: 16px;
-        overflow: hidden;
-        box-shadow: inset 0 0 0 1px #e2e8f0;
-      }
-      thead {
-        background: #edf2ff;
-      }
-      th,
-      td {
-        padding: 12px 16px;
-        border-bottom: 1px solid #e2e8f0;
-        font-size: 0.97rem;
-      }
-      th {
-        text-align: left;
-        font-weight: 600;
-        color: #334155;
-      }
-      td.numeric {
-        text-align: right;
-        font-variant-numeric: tabular-nums;
-        color: #111827;
-      }
-      tbody tr:last-child td,
-      tbody tr:last-child th {
-        border-bottom: none;
-      }
-      .totals-row th,
-      .totals-row td {
-        font-weight: 700;
-        background: #f8fafc;
-      }
-      .report-list {
-        margin: 12px 0 0;
-        padding-left: 20px;
-        color: #1f2937;
-      }
-      .report-footer {
-        margin-top: 36px;
-        font-size: 0.9rem;
-        color: #64748b;
-        text-align: right;
-      }
-      @media (max-width: 640px) {
-        .report-meta {
-          width: 100%;
-        }
-        table {
-          font-size: 0.92rem;
-        }
-        th,
-        td {
-          padding: 10px 12px;
-        }
-      }
-    </style>
-  </head>
-  <body>
-    <main class="report">
-      <header class="report-header">
-        <div>
-          <h1>Monthly accounting breakdown</h1>
-          <p class="report-subtitle">${escapeHtml(
-            `${formatNumberValue(studentsUsed, 2)} students · ${formatNumberValue(classesPerWeekUsed, 2)} classes per week`,
-          )}</p>
-        </div>
-        <div class="report-meta">
-          <p><span>Generated</span>${escapeHtml(generatedDisplay)}</p>
-          <p><span>Pricing mode</span>${escapeHtml(
-            pricingMode === PRICING_MODE_TARGET ? "Target net income (base price)" : "Manual price per student",
-          )}</p>
-          <p><span>Currency</span>${currencyEscaped}</p>
-        </div>
-      </header>
-      <section class="report-section">
-        <h2>Scenario summary</h2>
-        <div class="summary-grid">${summaryMarkup}</div>
-      </section>
-      <section class="report-section">
-        <h2>Incomings</h2>
-        <table>
-          <thead>
-            <tr>
-              <th scope="col">Line item</th>
-              <th scope="col" class="numeric">Per lesson</th>
-              <th scope="col" class="numeric">Monthly total</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <th scope="row">Tuition revenue (incl. VAT)</th>
-              <td class="numeric">${escapeHtml(formatCurrencyOrDash(currency, revenuePerLessonInclVat))}</td>
-              <td class="numeric">${escapeHtml(formatCurrencyOrDash(currency, monthlyRevenueInclVat))}</td>
-            </tr>
-            <tr>
-              <th scope="row">Tuition revenue (excl. VAT)</th>
-              <td class="numeric">${escapeHtml(formatCurrencyOrDash(currency, revenuePerLessonExVat))}</td>
-              <td class="numeric">${escapeHtml(formatCurrencyOrDash(currency, monthlyRevenueExVat))}</td>
-            </tr>
-          </tbody>
-        </table>
-      </section>
-      <section class="report-section">
-        <h2>Outgoings</h2>
-        <table>
-          <thead>
-            <tr>
-              <th scope="col">Line item</th>
-              <th scope="col" class="numeric">Per lesson</th>
-              <th scope="col" class="numeric">Monthly total</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <th scope="row">VAT payable</th>
-              <td class="numeric">${escapeHtml(formatCurrencyOrDash(currency, perLessonVat))}</td>
-              <td class="numeric">${escapeHtml(formatCurrencyOrDash(currency, monthlyVat))}</td>
-            </tr>
-            <tr>
-              <th scope="row">Variable costs — per class</th>
-              <td class="numeric">${escapeHtml(formatCurrencyOrDash(currency, perLessonVariableClass))}</td>
-              <td class="numeric">${escapeHtml(formatCurrencyOrDash(currency, monthlyVariableClass))}</td>
-            </tr>
-            <tr>
-              <th scope="row">Variable costs — per student per class</th>
-              <td class="numeric">${escapeHtml(formatCurrencyOrDash(currency, perLessonVariableStudent))}</td>
-              <td class="numeric">${escapeHtml(formatCurrencyOrDash(currency, monthlyVariableStudent))}</td>
-            </tr>
-            <tr>
-              <th scope="row">Variable costs — per student per month</th>
-              <td class="numeric">${escapeHtml(formatCurrencyOrDash(currency, perLessonVariableMonthly))}</td>
-              <td class="numeric">${escapeHtml(formatCurrencyOrDash(currency, monthlyVariableStudentMonthly))}</td>
-            </tr>
-            <tr>
-              <th scope="row">Fixed cost allocation</th>
-              <td class="numeric">${escapeHtml(formatCurrencyOrDash(currency, perLessonFixed))}</td>
-              <td class="numeric">${escapeHtml(formatCurrencyOrDash(currency, monthlyFixedCosts))}</td>
-            </tr>
-            <tr>
-              <th scope="row">Income tax provision</th>
-              <td class="numeric">${escapeHtml(formatCurrencyOrDash(currency, perLessonIncomeTax))}</td>
-              <td class="numeric">${escapeHtml(formatCurrencyOrDash(currency, monthlyIncomeTax))}</td>
-            </tr>
-            <tr class="totals-row">
-              <th scope="row">Total outgoings</th>
-              <td class="numeric">${escapeHtml(formatCurrencyOrDash(currency, perLessonOutgoings))}</td>
-              <td class="numeric">${escapeHtml(formatCurrencyOrDash(currency, monthlyOutgoings))}</td>
-            </tr>
-          </tbody>
-        </table>
-      </section>
-      <section class="report-section">
-        <h2>Net position</h2>
-        <table>
-          <thead>
-            <tr>
-              <th scope="col">Metric</th>
-              <th scope="col" class="numeric">Value</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <th scope="row">Monthly profit before tax</th>
-              <td class="numeric">${escapeHtml(formatCurrencyOrDash(currency, profitBeforeTax))}</td>
-            </tr>
-            <tr>
-              <th scope="row">Monthly net income</th>
-              <td class="numeric">${escapeHtml(formatCurrencyOrDash(currency, monthlyNetIncome))}</td>
-            </tr>
-            <tr>
-              <th scope="row">Net margin (on ex-VAT revenue)</th>
-              <td class="numeric">${Number.isFinite(netMargin) ? escapeHtml(`${formatFixed(netMargin, 1)}%`) : "—"}</td>
-            </tr>
-            <tr>
-              <th scope="row">Gross hourly revenue</th>
-              <td class="numeric">${Number.isFinite(effectiveHourlyGross) ? escapeHtml(formatCurrencyDetailed(currency, effectiveHourlyGross)) : "—"}</td>
-            </tr>
-            <tr>
-              <th scope="row">Net hourly pay</th>
-              <td class="numeric">${Number.isFinite(effectiveHourlyNet) ? escapeHtml(formatCurrencyDetailed(currency, effectiveHourlyNet)) : "—"}</td>
-            </tr>
-            <tr>
-              <th scope="row">Net income per lesson</th>
-              <td class="numeric">${escapeHtml(formatCurrencyOrDash(currency, perLessonNetIncome))}</td>
-            </tr>
-          </tbody>
-        </table>
-      </section>
-      ${notesMarkup}
-      <p class="report-footer">Generated with the Course Pricing Calculator.</p>
-    </main>
-  </body>
-</html>`;
-
-  return html;
-}
-
 function populateBreakdownDialog(context) {
   if (!context || !Array.isArray(latestPricingData) || !breakdownDialog || !breakdownSummary) {
     return false;
@@ -3707,14 +2502,14 @@ function populateBreakdownDialog(context) {
   const perLessonInclVat = formatCurrency(latestCurrencySymbol, breakdown.totals.priceInclVatPerLesson);
   const perLessonExVat = formatCurrency(latestCurrencySymbol, breakdown.totals.priceExVatPerLesson);
 
-  const studentsDisplay = Number.isFinite(row.students) ? numberFormatter.format(row.students) : "—";
+  const studentsDisplay = Number.isFinite(row.students) ? numberFormatter.format(row.students) : "-";
   const classesPerWeekValue = column.classesPerWeek;
   const classesPerWeekDisplay = Number.isFinite(classesPerWeekValue)
     ? Number.isInteger(classesPerWeekValue)
       ? numberFormatter.format(classesPerWeekValue)
       : formatFixed(classesPerWeekValue, 2)
-    : "—";
-  const classesPerYearDisplay = Number.isFinite(column.classesPerYear) ? numberFormatter.format(Math.round(column.classesPerYear)) : "—";
+    : "-";
+  const classesPerYearDisplay = Number.isFinite(column.classesPerYear) ? numberFormatter.format(Math.round(column.classesPerYear)) : "-";
 
   let variantLabel;
   if (useManualSource) {
@@ -3758,35 +2553,37 @@ function populateBreakdownDialog(context) {
         const perStudentValue = breakdown.perStudent[item.key];
         const perLessonValue = breakdown.perLesson[item.key];
         return `
-              <tr>
-                <th scope="row">${item.label}</th>
-                <td>${formatBreakdownCurrency(perStudentValue)}</td>
-                <td>${formatBreakdownCurrency(perLessonValue)}</td>
-              </tr>
-            `;
+          <tr>
+            <th scope="row">${escapeHtml(item.label)}</th>
+            <td>${escapeHtml(formatBreakdownCurrency(perStudentValue))}</td>
+            <td>${escapeHtml(formatBreakdownCurrency(perLessonValue))}</td>
+          </tr>
+        `;
       })
       .join("");
     breakdownTableBody.innerHTML = rowsMarkup;
   }
 
+  if (breakdownSummary) {
+    breakdownSummary.textContent = `${studentsDisplay} students x ${classesPerWeekDisplay} classes/week`;
+  }
+
   const legendItems = [
-    { key: "vat", label: "VAT remitted", value: breakdown.perLesson.vat, color: "var(--breakdown-color-vat)" },
-    { key: "variableCosts", label: "Variable costs", value: breakdown.perLesson.variableCosts, color: "var(--breakdown-color-variable)" },
-    {
-      key: "fixedCostAllocation",
-      label: "Fixed cost allocation",
-      value: breakdown.perLesson.fixedCostAllocation,
-      color: "var(--breakdown-color-fixed)",
-    },
-    { key: "incomeTax", label: "Income tax", value: breakdown.perLesson.incomeTax, color: "var(--breakdown-color-tax)" },
-    { key: "netIncome", label: "Net income after tax", value: breakdown.perLesson.netIncome, color: "var(--breakdown-color-net)" },
-  ];
+    { key: "vat", label: "VAT", color: "var(--breakdown-color-vat)" },
+    { key: "variableCosts", label: "Variable costs", color: "var(--breakdown-color-variable)" },
+    { key: "fixedCostAllocation", label: "Fixed costs", color: "var(--breakdown-color-fixed)" },
+    { key: "incomeTax", label: "Income tax", color: "var(--breakdown-color-tax)" },
+    { key: "netIncome", label: "Net income", color: "var(--breakdown-color-net)" },
+  ].map((item) => ({
+    ...item,
+    value: breakdown.perLesson[item.key],
+  }));
 
   if (breakdownLegend) {
     const legendMarkup = legendItems
       .map(
         (item) => `
-            <li class="lesson-breakdown-dialog__legend-item">
+            <li>
               <span class="lesson-breakdown-dialog__legend-swatch" style="--swatch-color:${item.color};"></span>
               <span class="lesson-breakdown-dialog__legend-label">${item.label}</span>
               <span class="lesson-breakdown-dialog__legend-value">${formatBreakdownCurrency(item.value)}</span>
@@ -3928,409 +2725,6 @@ function refreshBreakdownDialog() {
   return refreshed;
 }
 
-function computeNetIncomeFromRevenue(revenue, fixedCosts, effectiveTaxRate, variableCosts = 0) {
-  if (!Number.isFinite(revenue)) {
-    return null;
-  }
-  const normalizedVariableCosts = Number.isFinite(variableCosts) ? variableCosts : 0;
-  const profitBeforeTax = revenue - fixedCosts - normalizedVariableCosts;
-  return profitBeforeTax * (1 - effectiveTaxRate);
-}
-
-function shouldHighlightIncome({ monthlyNet, annualNet }, options = {}) {
-  const { acceptableIncome = null, displayMode = "net", taxRate = 0, activeMonths = MONTHS_PER_YEAR } = options;
-
-  if (!acceptableIncome || typeof acceptableIncome !== "object") {
-    return false;
-  }
-
-  const { basis, minAnnualNet, maxAnnualNet } = acceptableIncome;
-  const hasMin = Number.isFinite(minAnnualNet);
-  const hasMax = Number.isFinite(maxAnnualNet);
-
-  if (!basis || (!hasMin && !hasMax)) {
-    return false;
-  }
-
-  const normalizedTaxRate = Math.min(Math.max(taxRate, 0), 0.9999);
-  const denominator = Math.max(1 - normalizedTaxRate, 0.0001);
-  const monthsForRange = activeMonths > 0 ? activeMonths : MONTHS_PER_YEAR;
-  const averageMonthsForRange = MONTHS_PER_YEAR;
-
-  const convertNetToDisplay = (value) => {
-    if (!Number.isFinite(value)) {
-      return null;
-    }
-    return displayMode === "gross" ? value / denominator : value;
-  };
-
-  if (basis === "annual") {
-    if (!Number.isFinite(annualNet)) {
-      return false;
-    }
-    const valueDisplay = convertNetToDisplay(annualNet);
-    const minDisplay = hasMin ? convertNetToDisplay(minAnnualNet) : null;
-    const maxDisplay = hasMax ? convertNetToDisplay(maxAnnualNet) : null;
-    if (!Number.isFinite(valueDisplay)) {
-      return false;
-    }
-    if (Number.isFinite(minDisplay) && valueDisplay < minDisplay) {
-      return false;
-    }
-    if (Number.isFinite(maxDisplay) && valueDisplay > maxDisplay) {
-      return false;
-    }
-    return true;
-  }
-
-  if (basis === "averageMonthly") {
-    if (!Number.isFinite(annualNet)) {
-      return false;
-    }
-    const valueDisplay = convertNetToDisplay(annualNet / averageMonthsForRange);
-    const minDisplay = hasMin ? convertNetToDisplay(minAnnualNet / averageMonthsForRange) : null;
-    const maxDisplay = hasMax ? convertNetToDisplay(maxAnnualNet / averageMonthsForRange) : null;
-    if (!Number.isFinite(valueDisplay)) {
-      return false;
-    }
-    if (Number.isFinite(minDisplay) && valueDisplay < minDisplay) {
-      return false;
-    }
-    if (Number.isFinite(maxDisplay) && valueDisplay > maxDisplay) {
-      return false;
-    }
-    return true;
-  }
-
-  if (!Number.isFinite(monthlyNet)) {
-    return false;
-  }
-  const valueDisplay = convertNetToDisplay(monthlyNet);
-  const minDisplay = hasMin ? convertNetToDisplay(minAnnualNet / monthsForRange) : null;
-  const maxDisplay = hasMax ? convertNetToDisplay(maxAnnualNet / monthsForRange) : null;
-  if (!Number.isFinite(valueDisplay)) {
-    return false;
-  }
-  if (Number.isFinite(minDisplay) && valueDisplay < minDisplay) {
-    return false;
-  }
-  if (Number.isFinite(maxDisplay) && valueDisplay > maxDisplay) {
-    return false;
-  }
-  return true;
-}
-
-function buildCostsSummary(costs, symbol, activeMonths) {
-  const fixedCostLabels = {
-    location: "Location / venue",
-    insurance: "Business insurance",
-    disability: "Disability insurance (AOV)",
-    health: "Health insurance premium",
-    pension: "Pension contributions",
-    marketing: "Marketing",
-    materials: "Materials",
-    admin: "Admin / software",
-    development: "Professional development",
-  };
-  const variableCostLabels = {
-    perClass: "Variable cost per class",
-    perStudent: "Variable cost per student",
-    perStudentMonthly: "Variable monthly cost per student",
-  };
-
-  const includedCosts = [];
-  const excludedCosts = [];
-
-  // Process fixed costs
-  Object.entries(fixedCostLabels).forEach(([key, label]) => {
-    const annualValue = costs.fixed?.[key] ?? 0;
-    if (annualValue > 0) {
-      const monthlyValue = activeMonths > 0 ? annualValue / activeMonths : annualValue / MONTHS_PER_YEAR;
-      includedCosts.push(`${label} (${formatCurrency(symbol, monthlyValue)})`);
-    } else {
-      excludedCosts.push(label);
-    }
-  });
-
-  // Process variable costs
-  const variableCostKeys = [
-    { key: "perClass", value: costs.variable?.perClass ?? 0 },
-    { key: "perStudent", value: costs.variable?.perStudent ?? 0 },
-    { key: "perStudentMonthly", value: costs.variable?.perStudentMonthly ?? 0 },
-  ];
-  variableCostKeys.forEach(({ key, value }) => {
-    const label = variableCostLabels[key];
-    if (value > 0) {
-      includedCosts.push(`${label} (${formatCurrency(symbol, value)})`);
-    } else {
-      excludedCosts.push(label);
-    }
-  });
-
-  const includedHtml = includedCosts.length
-    ? `<p class="costs-summary-item"><strong>Costs included (monthly):</strong> ${escapeHtml(includedCosts.join(", "))}</p>`
-    : `<p class="costs-summary-item"><strong>Costs included (monthly):</strong> <em>None</em></p>`;
-  const excludedHtml = excludedCosts.length
-    ? `<p class="costs-summary-item"><strong>Costs not included:</strong> ${escapeHtml(excludedCosts.join(", "))}</p>`
-    : "";
-
-  return `<div class="costs-summary">${includedHtml}${excludedHtml}</div>`;
-}
-
-function buildPricingTable(data, symbol, bufferPercent, options = {}) {
-  if (!data.length) {
-    return `<div class="card"><p class="status-message">No valid combinations available.</p></div>`;
-  }
-
-  const {
-    mode = PRICING_MODE_TARGET,
-    includeBuffer: useBuffer = true,
-    showExVat: displayExVat = true,
-    showHourlyRate: displayHourly = true,
-    showAnnualIncome: displayAnnual = true,
-    minLessonPrice = null,
-    maxLessonPrice = null,
-    acceptableIncome: acceptableIncomeRange = null,
-    desiredIncomeDisplayMode: incomeDisplayMode = "net",
-    taxRate: incomeTaxRate = 0,
-    activeMonths: incomeActiveMonths = MONTHS_PER_YEAR,
-    hoursPerLesson: lessonHours = 1,
-  } = options;
-  const formattedBuffer = formatFixed(bufferPercent, 1);
-  const cardClasses = ["card", "pricing-card"];
-
-  const hasPreferredRange = Number.isFinite(minLessonPrice) || Number.isFinite(maxLessonPrice);
-
-  const convertNetIncomeForDisplay = (value) => {
-    if (!Number.isFinite(value)) {
-      return null;
-    }
-    return incomeDisplayMode === "gross" ? convertNetToGross(value, incomeTaxRate) : value;
-  };
-
-  const formatIncomeForDisplay = (value) => {
-    const converted = convertNetIncomeForDisplay(value);
-    return Number.isFinite(converted) ? formatCurrency(symbol, converted) : "—";
-  };
-
-  const monthlyIncomeLabel = incomeDisplayMode === "gross" ? "Monthly gross" : "Monthly net";
-  const annualIncomeLabel = incomeDisplayMode === "gross" ? "Annual gross" : "Annual net";
-
-  const isPriceOutOfRange = (value) => {
-    if (!hasPreferredRange || !Number.isFinite(value)) {
-      return false;
-    }
-    if (Number.isFinite(minLessonPrice) && value < minLessonPrice) {
-      return true;
-    }
-    if (Number.isFinite(maxLessonPrice) && value > maxLessonPrice) {
-      return true;
-    }
-    return false;
-  };
-
-  const normalizedLessonHours = Number.isFinite(lessonHours) && lessonHours > 0 ? lessonHours : null;
-  const hourlyRateLabel = incomeDisplayMode === "gross" ? "Hourly gross" : "Hourly net";
-
-  const computeHourlyRate = (breakdown) => {
-    if (!normalizedLessonHours) {
-      return null;
-    }
-    const netPerLesson = breakdown?.perLesson?.netIncome;
-    if (!Number.isFinite(netPerLesson)) {
-      return null;
-    }
-    const lessonValue = incomeDisplayMode === "gross" ? convertNetToGross(netPerLesson, incomeTaxRate) : netPerLesson;
-    if (!Number.isFinite(lessonValue)) {
-      return null;
-    }
-    const perHour = lessonValue / normalizedLessonHours;
-    return Number.isFinite(perHour) ? perHour : null;
-  };
-
-  const formatHourlyRateDisplay = (breakdown) => {
-    const rate = computeHourlyRate(breakdown);
-    return Number.isFinite(rate) ? formatCurrency(symbol, rate) : "—";
-  };
-
-  const variant = useBuffer ? "buffered" : "base";
-  const defaultPriceLabel = useBuffer ? `Buffered +${formattedBuffer}%` : "Base price";
-
-  const renderPriceButton = ({
-    priceData,
-    rowIndex,
-    columnIndex,
-    priceLabel = defaultPriceLabel,
-    manualIndex = null,
-    priceSource = "dynamic",
-    variantOverride = null,
-    compact = false,
-  }) => {
-    if (!priceData) {
-      return "";
-    }
-
-    const buttonVariant = variantOverride === "base" || variantOverride === "buffered" ? variantOverride : variant;
-    const normalizedPriceSource = priceSource === "manual" ? "manual" : "dynamic";
-    const shortfallMultiplier = Math.max(1 - bufferPercent / 100, 0);
-    let highlightMonthlyNet = priceData.monthlyNet;
-    let highlightAnnualNet = priceData.annualNet;
-    let manualBufferImpactMarkup = "";
-
-    if (normalizedPriceSource === "manual" && useBuffer) {
-      highlightMonthlyNet = Number.isFinite(priceData.monthlyNet) ? priceData.monthlyNet * shortfallMultiplier : null;
-      highlightAnnualNet = Number.isFinite(priceData.annualNet) ? priceData.annualNet * shortfallMultiplier : null;
-      const shortfallAnnualDisplay = formatIncomeForDisplay(highlightAnnualNet);
-      const shortfallLabel = incomeDisplayMode === "gross" ? "Annual gross" : "Annual net";
-      manualBufferImpactMarkup = `<span class="price-tertiary price-tertiary--buffer-impact">${shortfallLabel} -${formattedBuffer}% buffer ${shortfallAnnualDisplay}</span>`;
-    }
-
-    const exVat = formatCurrency(symbol, priceData.priceExVat);
-    const inclVat = formatCurrency(symbol, priceData.priceInclVat);
-    const outOfRange = isPriceOutOfRange(priceData.priceInclVat);
-    const highlightIncome = shouldHighlightIncome(
-      { monthlyNet: highlightMonthlyNet, annualNet: highlightAnnualNet },
-      {
-        acceptableIncome: acceptableIncomeRange,
-        displayMode: incomeDisplayMode,
-        taxRate: incomeTaxRate,
-        activeMonths: incomeActiveMonths,
-      },
-    );
-    const priceClasses = ["price-line"];
-    if (compact) {
-      priceClasses.push("price-line--mini");
-    }
-    if (outOfRange) {
-      priceClasses.push("price-line--out-of-range");
-    }
-    if (highlightIncome) {
-      priceClasses.push("price-line--acceptable");
-    }
-    const buttonClass = priceClasses.join(" ");
-    const annualIncomeDisplay = formatIncomeForDisplay(priceData.annualNet);
-    const hourlyDisplay = formatHourlyRateDisplay(priceData.breakdown);
-    const valueClass = outOfRange ? "price-value price-value--out-of-range" : "price-value";
-    const exVatMarkup = displayExVat ? `<span class="price-secondary">ex VAT ${exVat}</span>` : "";
-    const hourlyMarkup = displayHourly ? `<span class="price-tertiary">${hourlyRateLabel} ${hourlyDisplay}</span>` : "";
-    const annualMarkup = displayAnnual ? `<span class="price-secondary">${annualIncomeLabel} ${annualIncomeDisplay}</span>` : "";
-    const manualIndexAttribute = Number.isInteger(manualIndex) ? ` data-manual-index="${manualIndex}"` : "";
-
-    return `
-          <button
-            type="button"
-            class="${buttonClass}"
-            data-row="${rowIndex}"
-            data-column="${columnIndex}"
-            data-variant="${buttonVariant}"
-            data-price-source="${normalizedPriceSource}"${manualIndexAttribute}
-          >
-            <span class="price-label">${priceLabel}</span>
-            <strong class="${valueClass}">${inclVat}</strong>
-            ${exVatMarkup}
-            ${hourlyMarkup}
-            ${annualMarkup}
-            ${manualBufferImpactMarkup}
-          </button>
-        `;
-  };
-
-  const bufferTooltip =
-    "Dynamic target-based suggested price is boosted by the buffer to compensate potential shortfall and help achieve desired income. Fixed prices do not change when buffer is on. Instead, each fixed-price square shows an annual shortfall line (Annual ... -X% buffer), and that shortfall value drives acceptable-income highlighting.";
-  const toggleMarkup = `<div class="price-display-toggles">
-            <label class="display-toggle">
-              <input type="checkbox" class="display-toggle-checkbox" data-toggle="exVat" ${showExVat ? "checked" : ""} />
-              <span>ex VAT</span>
-            </label>
-            <label class="display-toggle">
-              <input type="checkbox" class="display-toggle-checkbox" data-toggle="hourly" ${showHourlyRate ? "checked" : ""} />
-              <span>${hourlyRateLabel}</span>
-            </label>
-            <label class="display-toggle">
-              <input type="checkbox" class="display-toggle-checkbox" data-toggle="annual" ${showAnnualIncome ? "checked" : ""} />
-              <span>${annualIncomeLabel}</span>
-            </label>
-            <label class="display-toggle display-toggle--buffer">
-              <input type="checkbox" class="buffer-toggle-checkbox" ${useBuffer ? "checked" : ""} />
-              <span>Include buffer in target price (+${formattedBuffer}%)</span>
-              <span class="info-icon info-icon--tooltip-right" tabindex="0" role="button" aria-expanded="false"
-                aria-label="${bufferTooltip}" data-tooltip="${bufferTooltip}"><svg class="icon">
-                  <use href="#icon-info"></use>
-                </svg></span>
-            </label>
-          </div>`;
-
-  const columnHeaders = data[0].columns
-    .map((col) => {
-      return `<th scope="col">${col.classesPerWeek}/week<span class="sub-label">≈ ${numberFormatter.format(col.classesPerYear)} / yr</span></th>`;
-    })
-    .join("");
-
-  const rowsHtml = data
-    .map((row, rowIndex) => {
-      const cells = row.columns
-        .map((col, columnIndex) => {
-          const dynamicPriceData = useBuffer ? col.buffered : col.base;
-          const hasManualOptions = Array.isArray(col.manualOptions) && col.manualOptions.length > 0;
-          let manualOptionsMarkup = "";
-          if (hasManualOptions) {
-            const manualOptionButtons = col.manualOptions
-              .map((manualOption, manualIndex) => {
-                const priceData = manualOption.base;
-                return renderPriceButton({
-                  priceData,
-                  rowIndex,
-                  columnIndex,
-                  priceLabel: `Price ${manualIndex + 1}`,
-                  manualIndex,
-                  priceSource: "manual",
-                  variantOverride: "base",
-                  compact: true,
-                });
-              })
-              .join("");
-            manualOptionsMarkup = `<div class="price-line-group">${manualOptionButtons}</div>`;
-          }
-          return `
-                <td>
-                  <div class="price-pair">
-                    ${renderPriceButton({
-                      priceData: dynamicPriceData,
-                      rowIndex,
-                      columnIndex,
-                      priceSource: "dynamic",
-                    })}
-                    ${manualOptionsMarkup}
-                  </div>
-                </td>
-              `;
-        })
-        .join("");
-      return `<tr><th scope="row">${row.students}<span class="sub-label">students</span></th>${cells}</tr>`;
-    })
-    .join("");
-
-  return `
-        <div class="${cardClasses.join(" ")}">
-          ${toggleMarkup}
-          <div class="card-scroll">
-            <table>
-              <caption>Per-student pricing (includes optional extra safety margin)</caption>
-              <thead>
-                <tr>
-                  <th scope="col">Students / class</th>
-                  ${columnHeaders}
-                </tr>
-              </thead>
-              <tbody>
-                ${rowsHtml}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      `;
-}
-
 function buildActiveTargetsTable({ currencySymbol, revenueNeeded, workingDaysPerYear, workingWeeks, activeMonths }) {
   if (!Number.isFinite(revenueNeeded) || revenueNeeded <= 0) {
     return "";
@@ -4456,49 +2850,6 @@ function computeTables(inputs) {
     return { classesPerWeek: classes, classesPerYear };
   });
 
-  function buildPriceBreakdown({ priceExVatValue, priceInclVatValue, studentCount, classesPerYearValue }) {
-    const normalizedPriceExVat = Number.isFinite(priceExVatValue) ? priceExVatValue : 0;
-    const normalizedPriceInclVat = Number.isFinite(priceInclVatValue) ? priceInclVatValue : 0;
-    const actualStudents = Number.isFinite(studentCount) ? studentCount : 0;
-    const actualClassesPerYear = Number.isFinite(classesPerYearValue) ? classesPerYearValue : 0;
-    const safeStudents = actualStudents > 0 ? actualStudents : 1;
-    const fixedAllocationPerLesson = actualClassesPerYear > 0 ? fixedCosts / actualClassesPerYear : 0;
-    const vatPerStudent = normalizedPriceInclVat - normalizedPriceExVat;
-    const vatPerLesson = vatPerStudent * actualStudents;
-    const monthlyCostTotal = variableCostPerStudentMonthly * actualStudents * normalizedActiveMonths;
-    const monthlyCostPerLesson = actualClassesPerYear > 0 ? monthlyCostTotal / actualClassesPerYear : 0;
-    const variableCostsPerLesson = variableCostPerClass + variableCostPerStudent * actualStudents + monthlyCostPerLesson;
-    const revenueExVatPerLesson = normalizedPriceExVat * actualStudents;
-    const profitBeforeTaxPerLesson = revenueExVatPerLesson - variableCostsPerLesson - fixedAllocationPerLesson;
-    const incomeTaxPerLesson = profitBeforeTaxPerLesson > 0 ? profitBeforeTaxPerLesson * effectiveTaxRate : 0;
-    const netIncomePerLesson = profitBeforeTaxPerLesson - incomeTaxPerLesson;
-
-    return {
-      perLesson: {
-        vat: vatPerLesson,
-        variableCosts: variableCostsPerLesson,
-        fixedCostAllocation: fixedAllocationPerLesson,
-        incomeTax: incomeTaxPerLesson,
-        netIncome: netIncomePerLesson,
-      },
-      perStudent: {
-        vat: vatPerStudent,
-        variableCosts: variableCostsPerLesson / safeStudents,
-        fixedCostAllocation: fixedAllocationPerLesson / safeStudents,
-        incomeTax: incomeTaxPerLesson / safeStudents,
-        netIncome: netIncomePerLesson / safeStudents,
-      },
-      totals: {
-        priceInclVatPerStudent: normalizedPriceInclVat,
-        priceExVatPerStudent: normalizedPriceExVat,
-        priceInclVatPerLesson: normalizedPriceInclVat * actualStudents,
-        priceExVatPerLesson: revenueExVatPerLesson,
-        students: actualStudents,
-        classesPerYear: actualClassesPerYear,
-      },
-    };
-  }
-
   const denominator = Math.max(1 - effectiveTaxRate, 0.0001);
   const profitBeforeTax = targetNet / denominator;
   revenueNeeded = profitBeforeTax + fixedCosts;
@@ -4516,10 +2867,14 @@ function computeTables(inputs) {
     for (const column of columnsMeta) {
       const classesPerYear = column.classesPerYear;
       const effectiveClassesPerYear = Math.max(classesPerYear, 1);
-      const annualVariableCosts =
-        variableCostPerClass * classesPerYear +
-        variableCostPerStudent * students * classesPerYear +
-        variableCostPerStudentMonthly * students * normalizedActiveMonths;
+      const annualVariableCosts = computeAnnualVariableCosts({
+        variableCostPerClass,
+        variableCostPerStudent,
+        variableCostPerStudentMonthly,
+        students,
+        classesPerYear,
+        activeMonths: normalizedActiveMonths,
+      });
       const revenueNeededForCombo = revenueNeeded + annualVariableCosts;
       const revenuePerClass = revenueNeededForCombo / effectiveClassesPerYear;
       const priceExVat = revenuePerClass / Math.max(students, 1);
@@ -4537,12 +2892,24 @@ function computeTables(inputs) {
         priceInclVatValue: priceInclVat,
         studentCount: students,
         classesPerYearValue: classesPerYear,
+        fixedCosts,
+        variableCostPerClass,
+        variableCostPerStudent,
+        variableCostPerStudentMonthly,
+        normalizedActiveMonths,
+        effectiveTaxRate,
       });
       const bufferedBreakdown = buildPriceBreakdown({
         priceExVatValue: bufferedExVat,
         priceInclVatValue: bufferedInclVat,
         studentCount: students,
         classesPerYearValue: classesPerYear,
+        fixedCosts,
+        variableCostPerClass,
+        variableCostPerStudent,
+        variableCostPerStudentMonthly,
+        normalizedActiveMonths,
+        effectiveTaxRate,
       });
 
       const baseAnnualNet = Number.isFinite(baseBreakdown?.perLesson?.netIncome)
@@ -4567,6 +2934,12 @@ function computeTables(inputs) {
           priceInclVatValue: priceInclVatPerStudent,
           studentCount: students,
           classesPerYearValue: classesPerYear,
+          fixedCosts,
+          variableCostPerClass,
+          variableCostPerStudent,
+          variableCostPerStudentMonthly,
+          normalizedActiveMonths,
+          effectiveTaxRate,
         });
 
         const baseManual = {
@@ -4650,7 +3023,7 @@ function computeTables(inputs) {
 }
 
 function render() {
-  const inputs = getInputs();
+  const inputs = getInputs(controls, buildCalculationsContext());
   latestInputsSnapshot = cloneInputs(inputs);
   const { pricingData, bufferPercent, revenueNeeded, mode } = computeTables(inputs);
 

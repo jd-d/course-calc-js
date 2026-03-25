@@ -54,11 +54,16 @@ Important:
 
 ### Option B (Fallback/Fast Path): Temporary Local Server (HTTP)
 
-If running locally and port binding is allowed, serve the repo over HTTP:
+If running locally, use any simple static HTTP server that serves the repo
+root. This project is a static site and does not require Vite or another
+bundler dev server.
+
+Examples:
 
 - Run (from repo root): `python3 -m http.server 4173 --bind 127.0.0.1`
 - Open: `http://127.0.0.1:4173/` (or `http://localhost:4173/`)
 - Stop: Ctrl+C
+- Or use Five Server / Live Server and the local URL it provides.
 
 Notes:
 
@@ -100,7 +105,9 @@ After UI or modularization changes, always run a quick browser smoke pass once t
 ### Primary UI Smoke Test Fixture
 
 - For screenshot-based UI verification, use `tests/primary-ui-smoke-settings.json` as the baseline import config.
-- Run `scripts/primary_ui_smoke.py` to execute the primary smoke flow and capture a screenshot with this fixture.
+- Run `scripts/primary_ui_smoke.py` against the URL from your local static
+  server to execute the primary smoke flow and capture a screenshot with this
+  fixture.
 - This smoke test is the default reference for future visual checks unless a task explicitly requires different inputs.
 
 ### If An Agent Cannot Open PRs

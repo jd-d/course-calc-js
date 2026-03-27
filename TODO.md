@@ -90,6 +90,11 @@ Dependencies: easier once refactor work has separated calculation logic from UI 
   - Removed forced full-height behavior from the pricing/results cards so
     they hug their rendered content. (2026-03-25)
 
+- [x] Add quick toggles above the pricing table for average monthly, average weekly, and per-lesson income plus a synchronized gross/net display toggle.
+  - Added checkbox toggles near the existing ex VAT, hourly, and annual controls.
+  - Added a table-level gross/net mode button wired to the same state as the sidebar desired-income display toggle.
+  - Kept income figures aligned to net or gross mode for annual, average monthly, average weekly, hourly, and per-lesson outputs. (2026-03-27)
+
 - [x] Clean up local workspace noise after the docs/tooling commit.
   - Ignored `course-calc-js.code-workspace` as a local editor artifact.
   - Ignored `lint-docs-check.txt` as local markdown-lint output.

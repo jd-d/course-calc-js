@@ -2,6 +2,7 @@ import { escapeHtml, formatCurrency, formatFixed } from "./utils.js";
 import { shouldHighlightIncome } from "./calculations.js";
 
 const MONTHS_PER_YEAR = 12;
+const WEEKS_PER_YEAR = 52;
 const PRICING_MODE_TARGET = "target";
 const numberFormatter = new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 });
 
@@ -69,6 +70,9 @@ export function buildPricingTable(data, symbol, bufferPercent, options = {}) {
     showExVat: displayExVat = true,
     showHourlyRate: displayHourly = true,
     showAnnualIncome: displayAnnual = true,
+    showAverageMonthlyIncome: displayAverageMonthly = true,
+    showAverageWeeklyIncome: displayAverageWeekly = true,
+    showPerLessonIncome: displayPerLesson = true,
     minLessonPrice = null,
     maxLessonPrice = null,
     acceptableIncome: acceptableIncomeRange = null,
@@ -96,6 +100,9 @@ export function buildPricingTable(data, symbol, bufferPercent, options = {}) {
 
   const monthlyIncomeLabel = incomeDisplayMode === "gross" ? "Monthly gross" : "Monthly net";
   const annualIncomeLabel = incomeDisplayMode === "gross" ? "Annual gross" : "Annual net";
+  const averageMonthlyIncomeLabel = incomeDisplayMode === "gross" ? "Ave. monthly gross" : "Ave. monthly net";
+  const averageWeeklyIncomeLabel = incomeDisplayMode === "gross" ? "Ave. weekly gross" : "Ave. weekly net";
+  const perLessonIncomeLabel = incomeDisplayMode === "gross" ? "Per lesson gross" : "Per lesson net";
 
   const getPriceRangeIssue = (value) => {
     if (!hasPreferredRange || !Number.isFinite(value)) {
@@ -134,6 +141,35 @@ export function buildPricingTable(data, symbol, bufferPercent, options = {}) {
   const formatHourlyRateDisplay = (breakdown) => {
     const rate = computeHourlyRate(breakdown);
     return Number.isFinite(rate) ? formatCurrency(symbol, rate) : "—";
+  };
+
+  const computeAverageMonthlyIncome = (priceData) => {
+    const annualNet = priceData?.annualNet;
+    if (!Number.isFinite(annualNet)) {
+      return null;
+    }
+    return annualNet / MONTHS_PER_YEAR;
+  };
+
+  const computeAverageWeeklyIncome = (priceData) => {
+    const annualNet = priceData?.annualNet;
+    if (!Number.isFinite(annualNet)) {
+      return null;
+    }
+    return annualNet / WEEKS_PER_YEAR;
+  };
+
+  const computePerLessonIncome = (breakdown) => {
+    const netPerLesson = breakdown?.perLesson?.netIncome;
+    if (!Number.isFinite(netPerLesson)) {
+      return null;
+    }
+    return netPerLesson;
+  };
+
+  const formatIncomeValueForDisplay = (value) => {
+    const converted = incomeDisplayMode === "gross" ? convertNetToGross(value, incomeTaxRate) : value;
+    return Number.isFinite(converted) ? formatCurrency(symbol, converted) : "—";
   };
 
   const variant = useBuffer ? "buffered" : "base";
@@ -204,11 +240,21 @@ export function buildPricingTable(data, symbol, bufferPercent, options = {}) {
     const styleTooltip = styleMessages.length ? escapeHtml(styleMessages.join(" ")) : "";
     const styleTooltipAttributes = styleMessages.length ? ` title="${styleTooltip}" aria-description="${styleTooltip}"` : "";
     const annualIncomeDisplay = formatIncomeForDisplay(priceData.annualNet);
+    const averageMonthlyIncomeDisplay = formatIncomeValueForDisplay(computeAverageMonthlyIncome(priceData));
+    const averageWeeklyIncomeDisplay = formatIncomeValueForDisplay(computeAverageWeeklyIncome(priceData));
+    const perLessonIncomeDisplay = formatIncomeValueForDisplay(computePerLessonIncome(priceData.breakdown));
     const hourlyDisplay = formatHourlyRateDisplay(priceData.breakdown);
     const valueClass = outOfRange ? "price-value price-value--out-of-range" : "price-value";
     const exVatMarkup = displayExVat ? `<span class="price-secondary">ex VAT ${exVat}</span>` : "";
     const hourlyMarkup = displayHourly ? `<span class="price-tertiary">${hourlyRateLabel} ${hourlyDisplay}</span>` : "";
     const annualMarkup = displayAnnual ? `<span class="price-secondary">${annualIncomeLabel} ${annualIncomeDisplay}</span>` : "";
+    const averageMonthlyMarkup = displayAverageMonthly
+      ? `<span class="price-secondary">${averageMonthlyIncomeLabel} ${averageMonthlyIncomeDisplay}</span>`
+      : "";
+    const averageWeeklyMarkup = displayAverageWeekly
+      ? `<span class="price-secondary">${averageWeeklyIncomeLabel} ${averageWeeklyIncomeDisplay}</span>`
+      : "";
+    const perLessonMarkup = displayPerLesson ? `<span class="price-tertiary">${perLessonIncomeLabel} ${perLessonIncomeDisplay}</span>` : "";
     const manualIndexAttribute = Number.isInteger(manualIndex) ? ` data-manual-index="${manualIndex}"` : "";
 
     return `
@@ -225,6 +271,9 @@ export function buildPricingTable(data, symbol, bufferPercent, options = {}) {
             ${exVatMarkup}
             ${hourlyMarkup}
             ${annualMarkup}
+            ${averageMonthlyMarkup}
+            ${averageWeeklyMarkup}
+            ${perLessonMarkup}
             ${manualBufferImpactMarkup}
           </button>
         `;
@@ -245,6 +294,21 @@ export function buildPricingTable(data, symbol, bufferPercent, options = {}) {
               <input type="checkbox" class="display-toggle-checkbox" data-toggle="annual" ${displayAnnual ? "checked" : ""} />
               <span>${annualIncomeLabel}</span>
             </label>
+            <label class="display-toggle">
+              <input type="checkbox" class="display-toggle-checkbox" data-toggle="averageMonthly" ${displayAverageMonthly ? "checked" : ""} />
+              <span>${averageMonthlyIncomeLabel}</span>
+            </label>
+            <label class="display-toggle">
+              <input type="checkbox" class="display-toggle-checkbox" data-toggle="averageWeekly" ${displayAverageWeekly ? "checked" : ""} />
+              <span>${averageWeeklyIncomeLabel}</span>
+            </label>
+            <label class="display-toggle">
+              <input type="checkbox" class="display-toggle-checkbox" data-toggle="perLesson" ${displayPerLesson ? "checked" : ""} />
+              <span>${perLessonIncomeLabel}</span>
+            </label>
+            <button type="button" class="display-mode-toggle-button" data-toggle="incomeDisplayMode">
+              Show ${incomeDisplayMode === "gross" ? "net" : "gross"}
+            </button>
             <label class="display-toggle display-toggle--buffer">
               <input type="checkbox" class="buffer-toggle-checkbox" ${useBuffer ? "checked" : ""} />
               <span>Include buffer in target price (+${formattedBuffer}%)</span>

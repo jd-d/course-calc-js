@@ -125,6 +125,12 @@ Use these steps to confirm hybrid dynamic + manual lesson-price rendering works 
 3. Edit any field in **Desired Net/Gross Income** while manual prices are filled in, and confirm desired-income fields remain editable.
 4. Toggle **Include buffer** and confirm both the dynamic and manual blocks update consistently.
 
+Use these steps to confirm the pricing-table quick metric toggles stay synchronized.
+
+1. Generate the pricing table and use the checkbox strip above the table to toggle **Ave. monthly**, **Ave. weekly**, and **Per lesson** rows on and off.
+2. Confirm each cell updates immediately and that values are shown as net or gross according to the current desired-income display mode.
+3. Click the table-level **Show net/gross** toggle and confirm the sidebar **Desired Income** display toggle reflects the same mode across all dependent labels.
+
 Use these steps to confirm Desired Net Income values do not go negative in manual lesson-price mode.
 
 1. Enter a very low manual lesson price (for example `1`) so projected profitability is poor.

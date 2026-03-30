@@ -90,6 +90,10 @@ Dependencies: easier once refactor work has separated calculation logic from UI 
   - Removed forced full-height behavior from the pricing/results cards so
     they hug their rendered content. (2026-03-25)
 
+- [x] Align manual fixed-price and dynamic-price metric calculations when the displayed incl-VAT prices match.
+  - Dynamic pricing metrics now reuse the rounded displayed incl-VAT price and derive ex-VAT from that same rounded value before running breakdown math.
+  - This keeps hourly/annual/average/per-lesson outputs consistent when dynamic and manual blocks both show the same displayed price. (2026-03-30)
+
 - [x] Add quick toggles above the pricing table for average monthly, average weekly, and per-lesson income plus a synchronized gross/net display toggle.
   - Added checkbox toggles near the existing ex VAT, hourly, and annual controls.
   - Added a table-level gross/net mode button wired to the same state as the sidebar desired-income display toggle.

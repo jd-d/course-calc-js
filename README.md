@@ -131,6 +131,12 @@ Use these steps to confirm the pricing-table quick metric toggles stay synchroni
 2. Confirm each cell updates immediately and that values are shown as net or gross according to the current desired-income display mode.
 3. Click the table-level **Show net/gross** toggle and confirm the sidebar **Desired Income** display toggle reflects the same mode across all dependent labels.
 
+Use these steps to confirm manual and dynamic blocks match when they show the same displayed price.
+
+1. Keep **Include buffer** enabled and choose inputs where a dynamic block and a manual block can both show the same rounded incl-VAT price.
+2. Compare **Hourly**, **Annual**, **Ave. monthly**, **Ave. weekly**, and **Per lesson** rows for those two blocks.
+3. Confirm the rows match when the displayed incl-VAT amount matches.
+
 Use these steps to confirm Desired Net Income values do not go negative in manual lesson-price mode.
 
 1. Enter a very low manual lesson price (for example `1`) so projected profitability is poor.

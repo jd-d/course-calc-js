@@ -2905,14 +2905,14 @@ function computeTables(inputs) {
       const priceInclVat = priceExVat * (1 + vatRate);
       const bufferedInclVat = bufferedExVat * (1 + vatRate);
 
-      const roundedBaseExVat = Math.round(priceExVat);
       const roundedBaseInclVat = Math.round(priceInclVat);
-      const roundedBufferedExVat = Math.round(bufferedExVat);
       const roundedBufferedInclVat = Math.round(bufferedInclVat);
+      const roundedBaseExVat = roundedBaseInclVat / vatDivisor;
+      const roundedBufferedExVat = roundedBufferedInclVat / vatDivisor;
 
       const baseBreakdown = buildPriceBreakdown({
-        priceExVatValue: priceExVat,
-        priceInclVatValue: priceInclVat,
+        priceExVatValue: roundedBaseExVat,
+        priceInclVatValue: roundedBaseInclVat,
         studentCount: students,
         classesPerYearValue: classesPerYear,
         fixedCosts,
@@ -2923,8 +2923,8 @@ function computeTables(inputs) {
         effectiveTaxRate,
       });
       const bufferedBreakdown = buildPriceBreakdown({
-        priceExVatValue: bufferedExVat,
-        priceInclVatValue: bufferedInclVat,
+        priceExVatValue: roundedBufferedExVat,
+        priceInclVatValue: roundedBufferedInclVat,
         studentCount: students,
         classesPerYearValue: classesPerYear,
         fixedCosts,
@@ -2998,15 +2998,15 @@ function computeTables(inputs) {
         classesPerYear,
         manualOptions,
         base: {
-          priceExVat,
-          priceInclVat,
+          priceExVat: roundedBaseExVat,
+          priceInclVat: roundedBaseInclVat,
           breakdown: baseBreakdown,
           annualNet: baseAnnualNet,
           monthlyNet: baseMonthlyNet,
         },
         buffered: {
-          priceExVat: bufferedExVat,
-          priceInclVat: bufferedInclVat,
+          priceExVat: roundedBufferedExVat,
+          priceInclVat: roundedBufferedInclVat,
           breakdown: bufferedBreakdown,
           annualNet: bufferedAnnualNet,
           monthlyNet: bufferedMonthlyNet,

@@ -905,6 +905,9 @@ let includeBuffer = true;
 let showExVat = true;
 let showHourlyRate = true;
 let showAnnualIncome = true;
+let showAverageMonthlyIncome = true;
+let showAverageWeeklyIncome = true;
+let showPerLessonIncome = true;
 let targetNetBasis = "avgMonth";
 let controlsPanelCollapsed = false;
 let desiredIncomeDisplayMode = "gross";
@@ -1256,6 +1259,26 @@ function updateDesiredIncomeTooltips() {
     }
     setInfoIconBaseText(icon, next);
   });
+}
+
+function setDesiredIncomeDisplayMode(nextMode) {
+  if (nextMode !== "gross" && nextMode !== "net") {
+    return;
+  }
+  if (desiredIncomeDisplayMode === nextMode) {
+    return;
+  }
+  desiredIncomeDisplayMode = nextMode;
+  if (!desiredIncomeLockedAsGross) {
+    desiredIncomePreviousNetValues = null;
+  }
+  clearDesiredIncomeEditingState();
+  clearAcceptableIncomeEditingState();
+  updateDesiredIncomeTitle();
+  updateDesiredIncomeLabels();
+  updateAcceptableIncomeBasisLabel();
+  updateDesiredIncomeTooltips();
+  render();
 }
 
 function updateAcceptableIncomeBasisLabel() {
@@ -2882,14 +2905,14 @@ function computeTables(inputs) {
       const priceInclVat = priceExVat * (1 + vatRate);
       const bufferedInclVat = bufferedExVat * (1 + vatRate);
 
-      const roundedBaseExVat = Math.round(priceExVat);
       const roundedBaseInclVat = Math.round(priceInclVat);
-      const roundedBufferedExVat = Math.round(bufferedExVat);
       const roundedBufferedInclVat = Math.round(bufferedInclVat);
+      const roundedBaseExVat = roundedBaseInclVat / vatDivisor;
+      const roundedBufferedExVat = roundedBufferedInclVat / vatDivisor;
 
       const baseBreakdown = buildPriceBreakdown({
-        priceExVatValue: priceExVat,
-        priceInclVatValue: priceInclVat,
+        priceExVatValue: roundedBaseExVat,
+        priceInclVatValue: roundedBaseInclVat,
         studentCount: students,
         classesPerYearValue: classesPerYear,
         fixedCosts,
@@ -2900,8 +2923,8 @@ function computeTables(inputs) {
         effectiveTaxRate,
       });
       const bufferedBreakdown = buildPriceBreakdown({
-        priceExVatValue: bufferedExVat,
-        priceInclVatValue: bufferedInclVat,
+        priceExVatValue: roundedBufferedExVat,
+        priceInclVatValue: roundedBufferedInclVat,
         studentCount: students,
         classesPerYearValue: classesPerYear,
         fixedCosts,
@@ -2975,15 +2998,15 @@ function computeTables(inputs) {
         classesPerYear,
         manualOptions,
         base: {
-          priceExVat,
-          priceInclVat,
+          priceExVat: roundedBaseExVat,
+          priceInclVat: roundedBaseInclVat,
           breakdown: baseBreakdown,
           annualNet: baseAnnualNet,
           monthlyNet: baseMonthlyNet,
         },
         buffered: {
-          priceExVat: bufferedExVat,
-          priceInclVat: bufferedInclVat,
+          priceExVat: roundedBufferedExVat,
+          priceInclVat: roundedBufferedInclVat,
           breakdown: bufferedBreakdown,
           annualNet: bufferedAnnualNet,
           monthlyNet: bufferedMonthlyNet,
@@ -3052,6 +3075,9 @@ function render() {
       showExVat,
       showHourlyRate,
       showAnnualIncome,
+      showAverageMonthlyIncome,
+      showAverageWeeklyIncome,
+      showPerLessonIncome,
       minLessonPrice: inputs.lessonPriceMin,
       maxLessonPrice: inputs.lessonPriceMax,
       acceptableIncome: {
@@ -3342,17 +3368,8 @@ acceptableBasisControls.forEach(({ control, value }) => {
 
 if (controls.desiredIncomeToggleDisplay instanceof HTMLButtonElement) {
   controls.desiredIncomeToggleDisplay.addEventListener("click", () => {
-    desiredIncomeDisplayMode = desiredIncomeDisplayMode === "gross" ? "net" : "gross";
-    if (!desiredIncomeLockedAsGross) {
-      desiredIncomePreviousNetValues = null;
-    }
-    clearDesiredIncomeEditingState();
-    clearAcceptableIncomeEditingState();
-    updateDesiredIncomeTitle();
-    updateDesiredIncomeLabels();
-    updateAcceptableIncomeBasisLabel();
-    updateDesiredIncomeTooltips();
-    render();
+    const nextMode = desiredIncomeDisplayMode === "gross" ? "net" : "gross";
+    setDesiredIncomeDisplayMode(nextMode);
   });
 }
 
@@ -3513,9 +3530,22 @@ tablesContainer.addEventListener("click", (event) => {
       showHourlyRate = displayToggle.checked;
     } else if (toggleType === "annual") {
       showAnnualIncome = displayToggle.checked;
+    } else if (toggleType === "averageMonthly") {
+      showAverageMonthlyIncome = displayToggle.checked;
+    } else if (toggleType === "averageWeekly") {
+      showAverageWeeklyIncome = displayToggle.checked;
+    } else if (toggleType === "perLesson") {
+      showPerLessonIncome = displayToggle.checked;
     }
     render();
     return;
+  }
+
+  const displayModeToggleButton =
+    event.target instanceof HTMLElement ? event.target.closest(".display-mode-toggle-button[data-toggle='incomeDisplayMode']") : null;
+  if (displayModeToggleButton) {
+    const nextMode = desiredIncomeDisplayMode === "gross" ? "net" : "gross";
+    setDesiredIncomeDisplayMode(nextMode);
   }
 });
 
